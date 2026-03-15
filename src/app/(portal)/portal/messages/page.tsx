@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation, Message } from "@/lib/types";
-import { MessageSquare, Send, Plus, ArrowLeft } from "lucide-react";
+import { MessageSquare, Send, Plus, ArrowLeft, Paperclip, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MessagesPage() {
@@ -15,6 +15,9 @@ export default function MessagesPage() {
   const [showNewConvo, setShowNewConvo] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,16 +69,33 @@ export default function MessagesPage() {
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!newMessage.trim() || !activeConvo || !userId) return;
+    if ((!newMessage.trim() && attachments.length === 0) || !activeConvo || !userId) return;
 
     const supabase = createClient();
+    setUploading(true);
+
+    const uploadedUrls: { name: string; url: string }[] = [];
+    for (const file of attachments) {
+      const path = `${userId}/${activeConvo}/${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from("client-files")
+        .upload(path, file, { upsert: true });
+      if (!error && data) {
+        const { data: urlData } = supabase.storage.from("client-files").getPublicUrl(data.path);
+        uploadedUrls.push({ name: file.name, url: urlData.publicUrl });
+      }
+    }
+
     await supabase.from("messages").insert({
       conversation_id: activeConvo,
       sender_id: userId,
-      body: newMessage.trim(),
+      body: newMessage.trim() || "(file attachment)",
+      attachments: uploadedUrls,
     });
 
     setNewMessage("");
+    setAttachments([]);
+    setUploading(false);
     loadMessages(activeConvo);
   }
 
@@ -208,6 +228,15 @@ export default function MessagesPage() {
                           </p>
                         )}
                         <p className="text-sm">{msg.body}</p>
+                        {(msg as Message & { attachments?: { name: string; url: string }[] }).attachments?.length ? (
+                          <div className="mt-2 space-y-1">
+                            {((msg as Message & { attachments?: { name: string; url: string }[] }).attachments ?? []).map((a, i) => (
+                              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block text-xs text-white/80 hover:text-white underline truncate">
+                                📎 {a.name}
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
                         <p
                           className={cn(
                             "text-xs mt-1",
@@ -226,20 +255,55 @@ export default function MessagesPage() {
                 <div ref={bottomRef} />
               </div>
 
-              <form onSubmit={sendMessage} className="p-4 border-t border-border flex gap-3">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-surface border border-border rounded-lg px-4 py-2.5 text-white text-sm placeholder-muted focus:outline-none focus:border-primary transition-colors"
-                />
-                <button
-                  type="submit"
-                  className="bg-primary hover:bg-primary-dark text-white p-2.5 rounded-lg transition-colors"
-                >
-                  <Send size={16} />
-                </button>
+              <form onSubmit={sendMessage} className="p-4 border-t border-border">
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {attachments.map((f, i) => (
+                      <span key={i} className="flex items-center gap-1 bg-surface rounded px-2 py-1 text-xs text-muted">
+                        {f.name}
+                        <button type="button" onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-300">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.txt,.csv,image/*"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files) setAttachments((a) => [...a, ...Array.from(files)]);
+                      e.target.value = "";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-muted hover:text-white p-2.5 rounded-lg transition-colors"
+                    title="Attach file"
+                  >
+                    <Paperclip size={18} />
+                  </button>
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 bg-surface border border-border rounded-lg px-4 py-2.5 text-white text-sm placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={uploading || (!newMessage.trim() && attachments.length === 0)}
+                    className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white p-2.5 rounded-lg transition-colors"
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
               </form>
             </>
           ) : (

@@ -8,6 +8,7 @@ import {
   MessageSquare,
   ArrowRight,
 } from "lucide-react";
+import { ClientWebsites } from "@/components/portal/ClientWebsites";
 
 export default async function PortalDashboard() {
   const supabase = await createClient();
@@ -82,6 +83,8 @@ export default async function PortalDashboard() {
           Here&apos;s an overview of your projects and activity.
         </p>
       </div>
+
+      <ClientWebsites />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((stat) => (

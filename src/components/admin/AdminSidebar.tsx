@@ -11,6 +11,8 @@ import {
   Receipt,
   MessageSquare,
   Kanban,
+  FileSignature,
+  Inbox,
   LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -18,11 +20,13 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/admin", icon: LayoutDashboard, label: "Overview" },
+  { href: "/admin/leads", icon: Inbox, label: "Quote Leads" },
   { href: "/admin/clients", icon: Users, label: "Clients" },
   { href: "/admin/work-orders", icon: ClipboardList, label: "Work Orders" },
   { href: "/admin/quotes", icon: FileText, label: "Quotes" },
   { href: "/admin/invoices", icon: Receipt, label: "Invoices" },
   { href: "/admin/messages", icon: MessageSquare, label: "Messages" },
+  { href: "/admin/contracts", icon: FileSignature, label: "Contracts" },
   { href: "/admin/boards", icon: Kanban, label: "Task Boards" },
 ];
 

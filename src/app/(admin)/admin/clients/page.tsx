@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,9 @@ import {
   FileText,
   Receipt,
   X,
+  Globe,
+  Plus,
+  FileSignature,
 } from "lucide-react";
 
 type ClientProfile = Profile & { email?: string };
@@ -22,18 +26,43 @@ type ClientStats = {
   invoices: number;
 };
 
-export default function AdminClientsPage() {
+type ClientWebsite = {
+  id: string;
+  client_id: string;
+  name: string;
+  url: string;
+};
+
+type ClientContract = {
+  id: string;
+  client_id: string;
+  name: string;
+  file_url: string;
+  status: string;
+  signed_at: string | null;
+  created_at: string;
+};
+
+function AdminClientsContent() {
+  const searchParams = useSearchParams();
+  const clientIdFromUrl = searchParams.get("client");
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [filteredClients, setFilteredClients] = useState<ClientProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(null);
   const [clientStats, setClientStats] = useState<ClientStats | null>(null);
+  const [clientWebsites, setClientWebsites] = useState<ClientWebsite[]>([]);
+  const [clientContracts, setClientContracts] = useState<ClientContract[]>([]);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [newSiteName, setNewSiteName] = useState("");
+  const [newSiteUrl, setNewSiteUrl] = useState("");
+  const [contractUploading, setContractUploading] = useState(false);
+  const contractFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadClients();
-  }, []);
+  }, [clientIdFromUrl]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -64,8 +93,16 @@ export default function AdminClientsPage() {
       setLoading(false);
       return;
     }
-    setClients((data as ClientProfile[]) ?? []);
-    setFilteredClients((data as ClientProfile[]) ?? []);
+    const clientList = (data as ClientProfile[]) ?? [];
+    setClients(clientList);
+    setFilteredClients(clientList);
+    if (clientIdFromUrl) {
+      const toSelect = clientList.find((c) => c.id === clientIdFromUrl);
+      if (toSelect) {
+        setSelectedClient(toSelect);
+        loadClientStats(toSelect.id);
+      }
+    }
     setLoading(false);
   }
 
@@ -73,7 +110,7 @@ export default function AdminClientsPage() {
     setStatsLoading(true);
     const supabase = createClient();
 
-    const [workOrdersRes, quotesRes, invoicesRes] = await Promise.all([
+    const [workOrdersRes, quotesRes, invoicesRes, websitesRes, contractsRes] = await Promise.all([
       supabase
         .from("work_orders")
         .select("*", { count: "exact", head: true })
@@ -86,6 +123,16 @@ export default function AdminClientsPage() {
         .from("invoices")
         .select("*", { count: "exact", head: true })
         .eq("client_id", clientId),
+      supabase
+        .from("client_websites")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("client_contracts")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false }),
     ]);
 
     setClientStats({
@@ -93,13 +140,67 @@ export default function AdminClientsPage() {
       quotes: quotesRes.count ?? 0,
       invoices: invoicesRes.count ?? 0,
     });
+    setClientWebsites(websitesRes.data ?? []);
+    setClientContracts(contractsRes.data ?? []);
     setStatsLoading(false);
+  }
+
+  async function addWebsite() {
+    if (!selectedClient || !newSiteName.trim() || !newSiteUrl.trim()) return;
+    const supabase = createClient();
+    const url = newSiteUrl.trim().startsWith("http") ? newSiteUrl.trim() : `https://${newSiteUrl.trim()}`;
+    await supabase.from("client_websites").insert({
+      client_id: selectedClient.id,
+      name: newSiteName.trim(),
+      url,
+    });
+    setNewSiteName("");
+    setNewSiteUrl("");
+    loadClientStats(selectedClient.id);
+  }
+
+  async function removeWebsite(id: string) {
+    if (!selectedClient) return;
+    const supabase = createClient();
+    await supabase.from("client_websites").delete().eq("id", id);
+    loadClientStats(selectedClient.id);
+  }
+
+  async function uploadContract(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedClient) return;
+
+    const supabase = createClient();
+    setContractUploading(true);
+    const path = `${selectedClient.id}/contracts/${Date.now()}-${file.name}`;
+    const { data: uploadData, error } = await supabase.storage
+      .from("client-files")
+      .upload(path, file, { upsert: true });
+
+    if (error) {
+      setContractUploading(false);
+      e.target.value = "";
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from("client-files").getPublicUrl(uploadData.path);
+    await supabase.from("client_contracts").insert({
+      client_id: selectedClient.id,
+      name: file.name,
+      file_url: urlData.publicUrl,
+      status: "pending",
+    });
+
+    setContractUploading(false);
+    e.target.value = "";
+    loadClientStats(selectedClient.id);
   }
 
   function handleSelectClient(client: ClientProfile) {
     if (selectedClient?.id === client.id) {
       setSelectedClient(null);
       setClientStats(null);
+      setClientWebsites([]);
       return;
     }
     setSelectedClient(client);
@@ -207,6 +308,7 @@ export default function AdminClientsPage() {
                   onClick={() => {
                     setSelectedClient(null);
                     setClientStats(null);
+                    setClientWebsites([]);
                   }}
                   className="text-muted hover:text-white transition-colors p-1"
                   aria-label="Close"
@@ -248,6 +350,77 @@ export default function AdminClientsPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="text-white font-medium text-sm mb-2 flex items-center gap-2">
+                  <Globe size={16} />
+                  Client Websites
+                </h4>
+                {clientWebsites.length > 0 && (
+                  <ul className="space-y-1 mb-3">
+                    {clientWebsites.map((site) => (
+                      <li key={site.id} className="flex items-center justify-between text-sm">
+                        <a href={site.url} target="_blank" rel="noopener noreferrer" className="text-primary-light hover:text-white truncate">
+                          {site.name}
+                        </a>
+                        <button onClick={() => removeWebsite(site.id)} className="text-red-400 hover:text-red-300 text-xs">Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Site name"
+                    value={newSiteName}
+                    onChange={(e) => setNewSiteName(e.target.value)}
+                    className="flex-1 bg-surface border border-border rounded px-2 py-1.5 text-white text-sm placeholder-muted"
+                  />
+                  <input
+                    type="text"
+                    placeholder="https://..."
+                    value={newSiteUrl}
+                    onChange={(e) => setNewSiteUrl(e.target.value)}
+                    className="flex-1 bg-surface border border-border rounded px-2 py-1.5 text-white text-sm placeholder-muted"
+                  />
+                  <button onClick={addWebsite} disabled={!newSiteName.trim() || !newSiteUrl.trim()} className="p-1.5 bg-primary text-white rounded disabled:opacity-50">
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="text-white font-medium text-sm mb-2 flex items-center gap-2">
+                  <FileSignature size={16} />
+                  Contracts
+                </h4>
+                {clientContracts.length > 0 && (
+                  <ul className="space-y-1 mb-3">
+                    {clientContracts.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between text-sm">
+                        <span className="text-muted truncate">{c.name}</span>
+                        <span className={c.status === "signed" ? "text-green-400 text-xs" : "text-amber-400 text-xs"}>
+                          {c.status === "signed" ? "Signed" : "Pending"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <input
+                  ref={contractFileRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx"
+                  onChange={uploadContract}
+                />
+                <button
+                  onClick={() => contractFileRef.current?.click()}
+                  disabled={contractUploading}
+                  className="text-sm text-primary-light hover:text-white"
+                >
+                  {contractUploading ? "Uploading..." : "+ Upload contract for client"}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="bg-surface-light border border-border rounded-xl p-6 text-center text-muted text-sm">
@@ -257,5 +430,13 @@ export default function AdminClientsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminClientsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-muted text-center py-12">Loading...</div>}>
+      <AdminClientsContent />
+    </Suspense>
   );
 }

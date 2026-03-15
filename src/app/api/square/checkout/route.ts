@@ -38,25 +38,30 @@ export async function POST(request: Request) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    const lineItems = invoice.line_items.map(
-      (item: { description: string; quantity: number; unit_price: number }) => ({
-        name: item.description,
-        quantity: String(item.quantity),
-        basePriceMoney: {
-          amount: BigInt(Math.round(item.unit_price * 100)),
-          currency: "USD",
-        },
-      })
-    );
+    const locationId = process.env.SQUARE_LOCATION_ID;
+    if (!locationId) {
+      return NextResponse.json(
+        { error: "Square is not configured. Please add SQUARE_LOCATION_ID in Settings." },
+        { status: 500 }
+      );
+    }
+
+    // Use Quick Pay (simpler, more reliable) - single total amount
+    const totalCents = Math.round(Number(invoice.total) * 100);
+    const description =
+      invoice.line_items?.length > 0
+        ? invoice.line_items.map((i: { description: string }) => i.description).join(", ")
+        : "Invoice payment";
 
     const response = await squareClient.checkout.paymentLinks.create({
       idempotencyKey: randomUUID(),
-      order: {
-        locationId: process.env.SQUARE_LOCATION_ID!,
-        lineItems,
-        metadata: {
-          invoice_id: invoiceId,
+      quickPay: {
+        name: description.length > 100 ? `Invoice #${invoiceId.slice(0, 8)}` : description,
+        priceMoney: {
+          amount: BigInt(totalCents),
+          currency: "USD",
         },
+        locationId,
       },
       checkoutOptions: {
         redirectUrl: `${appUrl}/portal/invoices?paid=${invoiceId}`,
@@ -64,24 +69,31 @@ export async function POST(request: Request) {
       },
     });
 
-    if (response.paymentLink?.url) {
+    const url = response.paymentLink?.url ?? response.paymentLink?.longUrl;
+    if (url) {
       await supabase
         .from("invoices")
-        .update({ square_payment_link: response.paymentLink.url })
+        .update({ square_payment_link: url })
         .eq("id", invoiceId);
 
-      return NextResponse.json({ checkoutUrl: response.paymentLink.url });
+      return NextResponse.json({ checkoutUrl: url });
     }
 
-    return NextResponse.json(
-      { error: "Failed to create payment link" },
-      { status: 500 }
-    );
-  } catch (error) {
+    const errMsg = response.errors?.[0]?.detail ?? "Failed to create payment link";
+    return NextResponse.json({ error: errMsg }, { status: 500 });
+  } catch (error: unknown) {
     console.error("Square checkout error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    let errMsg = "Payment link could not be created.";
+    if (error && typeof error === "object") {
+      const e = error as { body?: unknown; message?: string; errors?: { detail?: string }[] };
+      if (e.errors?.[0]?.detail) errMsg = e.errors[0].detail;
+      else if (e.message) errMsg = e.message;
+      else if (typeof e.body === "string") errMsg = e.body;
+      else if (e.body && typeof e.body === "object" && "errors" in e.body) {
+        const errs = (e.body as { errors?: { detail?: string }[] }).errors;
+        if (errs?.[0]?.detail) errMsg = errs[0].detail;
+      }
+    }
+    return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }

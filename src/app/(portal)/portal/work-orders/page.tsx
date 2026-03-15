@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { WorkOrder } from "@/lib/types";
-import { Plus, Clock, CheckCircle, AlertCircle, XCircle } from "lucide-react";
+import { Plus, Clock, CheckCircle, AlertCircle, XCircle, Paperclip, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<
@@ -31,7 +31,10 @@ export default function WorkOrdersPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadOrders();
@@ -62,18 +65,34 @@ export default function WorkOrdersPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
+    setSubmitting(true);
+    const uploadedUrls: { name: string; url: string }[] = [];
+    for (const file of attachments) {
+      const path = `${user.id}/work-orders/${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from("client-files")
+        .upload(path, file, { upsert: true });
+      if (!error && data) {
+        const { data: urlData } = supabase.storage.from("client-files").getPublicUrl(data.path);
+        uploadedUrls.push({ name: file.name, url: urlData.publicUrl });
+      }
+    }
+
     await supabase.from("work_orders").insert({
       client_id: user.id,
       title,
       description,
       priority,
       status: "submitted",
+      attachments: uploadedUrls,
     });
 
     setTitle("");
     setDescription("");
     setPriority("medium");
+    setAttachments([]);
     setShowForm(false);
+    setSubmitting(false);
     loadOrders();
   }
 
@@ -129,6 +148,45 @@ export default function WorkOrdersPage() {
             </div>
             <div>
               <label className="block text-white text-sm font-medium mb-1.5">
+                Attachments
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                accept=".pdf,.doc,.docx,.txt,.csv,image/*"
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files) setAttachments((a) => [...a, ...Array.from(files)]);
+                  e.target.value = "";
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 text-muted hover:text-white text-sm"
+                >
+                  <Paperclip size={16} />
+                  Attach files
+                </button>
+              </div>
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {attachments.map((f, i) => (
+                    <span key={i} className="flex items-center gap-1 bg-surface rounded px-2 py-1 text-xs text-muted">
+                      {f.name}
+                      <button type="button" onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-300">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-white text-sm font-medium mb-1.5">
                 Priority
               </label>
               <select
@@ -145,9 +203,10 @@ export default function WorkOrdersPage() {
             <div className="flex gap-3">
               <button
                 type="submit"
-                className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+                disabled={submitting}
+                className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                Submit
+                {submitting ? "Submitting..." : "Submit"}
               </button>
               <button
                 type="button"
@@ -210,6 +269,15 @@ export default function WorkOrdersPage() {
                     {new Date(order.created_at).toLocaleDateString()}
                   </span>
                 </div>
+                {order.attachments?.length ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {order.attachments.map((a, i) => (
+                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-light hover:text-white">
+                        📎 {a.name}
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             );
           })}

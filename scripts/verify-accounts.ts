@@ -57,9 +57,9 @@ async function verify() {
     console.log("  Login SUCCESS! User ID:", session.user.id);
   }
 
-  console.log("\nTesting login with mike@miketintnerproductions.com...");
+  console.log("\nTesting login with info@MikeTintnerProductions.com...");
   const { data: adminSession, error: adminError } = await clientSupabase.auth.signInWithPassword({
-    email: "mike@miketintnerproductions.com",
+    email: "info@MikeTintnerProductions.com",
     password: "admin123456",
   });
 

@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const ADMIN_EMAIL = "mike@miketintnerproductions.com";
+const ADMIN_EMAIL = "info@MikeTintnerProductions.com";
 const ADMIN_PASSWORD = "admin123456";
 
 const CLIENTS = [
@@ -71,7 +71,9 @@ async function createUser(
     if (error.message.includes("already been registered")) {
       console.log(`  User ${email} already exists, fetching...`);
       const { data: users } = await supabase.auth.admin.listUsers();
-      const existing = users?.users?.find((u) => u.email === email);
+      const existing = users?.users?.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase()
+      );
       if (existing) {
         await supabase
           .from("profiles")

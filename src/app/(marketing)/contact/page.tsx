@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
 
 export default function ContactPage() {
@@ -12,10 +13,26 @@ export default function ContactPage() {
     message: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: wire up to Supabase or email service
+    setSubmitting(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: insertError } = await supabase.from("quote_leads").insert({
+      full_name: formData.name.trim(),
+      email: formData.email.trim(),
+      organization: formData.organization.trim() || null,
+      org_type: formData.type || null,
+      message: formData.message.trim(),
+    });
+    setSubmitting(false);
+    if (insertError) {
+      setError("Something went wrong. Please try again or email us directly.");
+      return;
+    }
     setSubmitted(true);
   }
 
@@ -144,11 +161,15 @@ export default function ContactPage() {
                     />
                   </div>
 
+                  {error && (
+                    <p className="text-red-400 text-sm">{error}</p>
+                  )}
                   <button
                     type="submit"
-                    className="bg-primary hover:bg-primary-dark text-white px-8 py-3 rounded-lg font-semibold transition-colors"
+                    disabled={submitting}
+                    className="bg-primary hover:bg-primary-dark disabled:opacity-70 text-white px-8 py-3 rounded-lg font-semibold transition-colors"
                   >
-                    Send Message
+                    {submitting ? "Sending..." : "Send Message"}
                   </button>
                 </form>
               )}
@@ -163,7 +184,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="text-white font-medium mb-1">Email</h3>
                     <p className="text-muted text-sm">
-                      mike@miketintnerproductions.com
+                      info@MikeTintnerProductions.com
                     </p>
                   </div>
                 </div>

@@ -16,6 +16,8 @@ const statusStyles: Record<string, { color: string; label: string }> = {
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadInvoices();
@@ -39,14 +41,26 @@ export default function InvoicesPage() {
   }
 
   async function handlePay(invoice: Invoice) {
-    const res = await fetch("/api/square/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invoiceId: invoice.id }),
-    });
-    const data = await res.json();
-    if (data.checkoutUrl) {
-      window.location.href = data.checkoutUrl;
+    setError(null);
+    setPayingId(invoice.id);
+    try {
+      const res = await fetch("/api/square/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      const msg = data.error ?? (res.ok ? "No checkout URL returned." : `Request failed (${res.status}). Please try again.`);
+      setError(msg);
+    } catch {
+      setError("Failed to connect. Please try again.");
+    } finally {
+      setPayingId(null);
     }
   }
 
@@ -62,6 +76,12 @@ export default function InvoicesPage() {
           View and pay your invoices
         </p>
       </div>
+
+      {error && (
+        <div className="mb-4 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg p-3">
+          {error}
+        </div>
+      )}
 
       {invoices.length === 0 ? (
         <div className="bg-surface-light border border-border rounded-xl p-12 text-center">
@@ -146,10 +166,11 @@ export default function InvoicesPage() {
                   invoice.status === "overdue") && (
                   <button
                     onClick={() => handlePay(invoice)}
-                    className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                    disabled={payingId === invoice.id}
+                    className="flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
                   >
                     <CreditCard size={16} />
-                    Pay Now
+                    {payingId === invoice.id ? "Redirecting..." : "Pay Now"}
                   </button>
                 )}
 

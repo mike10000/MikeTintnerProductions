@@ -9,6 +9,8 @@ import {
   FileText,
   Receipt,
   MessageSquare,
+  FolderOpen,
+  FileSignature,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -21,6 +23,8 @@ const links = [
   { href: "/portal/quotes", icon: FileText, label: "Quotes" },
   { href: "/portal/invoices", icon: Receipt, label: "Invoices" },
   { href: "/portal/messages", icon: MessageSquare, label: "Messages" },
+  { href: "/portal/files", icon: FolderOpen, label: "Files" },
+  { href: "/portal/contracts", icon: FileSignature, label: "Contracts" },
   { href: "/portal/settings", icon: Settings, label: "Settings" },
 ];
 

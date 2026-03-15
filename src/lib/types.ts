@@ -27,6 +27,7 @@ export interface WorkOrder {
   priority: Priority;
   created_at: string;
   updated_at: string;
+  attachments?: { name: string; url: string }[];
   profiles?: Profile;
 }
 
@@ -84,6 +85,7 @@ export interface Message {
   body: string;
   read: boolean;
   created_at: string;
+  attachments?: { name: string; url: string }[];
   profiles?: Profile;
 }
 

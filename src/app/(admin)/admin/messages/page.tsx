@@ -3,8 +3,10 @@
 import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation, Message } from "@/lib/types";
-import { MessageSquare, Send, ArrowLeft } from "lucide-react";
+import { MessageSquare, Send, ArrowLeft, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type ClientOption = { id: string; full_name: string; company_name: string | null };
 
 export default function AdminMessagesPage() {
   const [conversations, setConversations] = useState<(Conversation & { profiles?: { full_name: string; company_name: string | null } })[]>([]);
@@ -13,6 +15,11 @@ export default function AdminMessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showNewConvo, setShowNewConvo] = useState(false);
+  const [newConvoClientId, setNewConvoClientId] = useState("");
+  const [newConvoSubject, setNewConvoSubject] = useState("");
+  const [newConvoMessage, setNewConvoMessage] = useState("");
+  const [clients, setClients] = useState<ClientOption[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,13 +40,50 @@ export default function AdminMessagesPage() {
     if (!user) return;
     setUserId(user.id);
 
+    const [convoRes, clientsRes] = await Promise.all([
+      supabase
+        .from("conversations")
+        .select("*, profiles(full_name, company_name)")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select("id, full_name, company_name")
+        .eq("role", "client")
+        .order("full_name"),
+    ]);
+
+    setConversations(convoRes.data || []);
+    setClients(clientsRes.data || []);
+    setLoading(false);
+  }
+
+  async function createConversation(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newConvoClientId || !newConvoSubject.trim() || !userId) return;
+
+    const supabase = createClient();
     const { data } = await supabase
       .from("conversations")
+      .insert({ client_id: newConvoClientId, subject: newConvoSubject.trim() })
       .select("*, profiles(full_name, company_name)")
-      .order("created_at", { ascending: false });
+      .single();
 
-    setConversations(data || []);
-    setLoading(false);
+    if (data) {
+      if (newConvoMessage.trim()) {
+        await supabase.from("messages").insert({
+          conversation_id: data.id,
+          sender_id: userId,
+          body: newConvoMessage.trim(),
+        });
+      }
+      setShowNewConvo(false);
+      setNewConvoClientId("");
+      setNewConvoSubject("");
+      setNewConvoMessage("");
+      setConversations((prev) => [data, ...prev]);
+      setActiveConvo(data.id);
+      loadMessages(data.id);
+    }
   }
 
   async function loadMessages(convoId: string) {
@@ -79,10 +123,77 @@ export default function AdminMessagesPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Messages</h1>
-        <p className="text-muted text-sm mt-1">Reply to client conversations</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Messages</h1>
+          <p className="text-muted text-sm mt-1">Communicate with clients — start conversations or reply</p>
+        </div>
+        <button
+          onClick={() => setShowNewConvo(true)}
+          className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium"
+        >
+          <Plus size={16} />
+          Start conversation
+        </button>
       </div>
+
+      {showNewConvo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-surface-light border border-border rounded-xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-white font-semibold">Start conversation</h2>
+              <button onClick={() => setShowNewConvo(false)} className="text-muted hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={createConversation} className="space-y-4">
+              <div>
+                <label className="block text-white text-sm font-medium mb-1.5">Client</label>
+                <select
+                  value={newConvoClientId}
+                  onChange={(e) => setNewConvoClientId(e.target.value)}
+                  required
+                  className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
+                >
+                  <option value="">Select client</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name} {c.company_name ? `(${c.company_name})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-white text-sm font-medium mb-1.5">Subject</label>
+                <input
+                  type="text"
+                  value={newConvoSubject}
+                  onChange={(e) => setNewConvoSubject(e.target.value)}
+                  required
+                  placeholder="e.g. Project update"
+                  className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-white text-sm font-medium mb-1.5">First message (optional)</label>
+                <textarea
+                  value={newConvoMessage}
+                  onChange={(e) => setNewConvoMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  rows={3}
+                  className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white resize-none"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-white font-medium rounded-lg"
+              >
+                Start conversation
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="bg-surface-light border border-border rounded-xl overflow-hidden flex" style={{ height: "calc(100vh - 200px)" }}>
         <div className={cn("w-80 border-r border-border flex flex-col", activeConvo && "hidden md:flex")}>
