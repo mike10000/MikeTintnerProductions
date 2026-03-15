@@ -10,7 +10,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center">
           <p className="text-muted">Loading...</p>
         </div>
       }
@@ -83,16 +83,16 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/">
             <Image
               src="/images/logo.png"
               alt="Mike Tintner Productions"
-              width={60}
-              height={60}
-              className="rounded-full mx-auto mb-4"
+              width={80}
+              height={80}
+              className="mx-auto mb-4"
             />
           </Link>
           <h1 className="text-2xl font-bold text-white">Client Portal</h1>
@@ -101,7 +101,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <div className="bg-surface-light border border-border rounded-xl p-6">
+        <div className="bg-slate-800/60 border border-blue-900/50 rounded-xl p-6 backdrop-blur-sm">
           <div className="flex mb-6">
             <button
               onClick={() => setTab("login")}

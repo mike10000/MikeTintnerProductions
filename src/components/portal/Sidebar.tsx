@@ -35,15 +35,14 @@ export function PortalSidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-surface border-r border-border flex flex-col z-40">
-      <div className="p-4 border-b border-border">
+    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-slate-900/80 border-r border-blue-900/50 flex flex-col z-40 backdrop-blur-sm">
+      <div className="p-4 border-b border-blue-900/50">
         <Link href="/" className="flex items-center gap-3">
           <Image
             src="/images/logo.png"
             alt="MTP"
-            width={32}
-            height={32}
-            className="rounded-full"
+            width={36}
+            height={36}
           />
           <span className="text-white font-bold text-sm">Client Portal</span>
         </Link>
@@ -61,8 +60,8 @@ export function PortalSidebar() {
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary/10 text-primary-light"
-                  : "text-muted hover:text-white hover:bg-surface-light"
+                  ? "bg-blue-600/20 text-blue-300"
+                  : "text-muted hover:text-white hover:bg-blue-950/50"
               )}
             >
               <link.icon size={18} />
@@ -72,10 +71,10 @@ export function PortalSidebar() {
         })}
       </nav>
 
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-blue-900/50">
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-surface-light transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted hover:text-white hover:bg-blue-950/50 transition-colors w-full"
         >
           <LogOut size={18} />
           Sign Out

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -35,11 +36,17 @@ export function Navbar() {
     >
       <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold italic text-white shadow-lg shadow-blue-900/50 transition-transform duration-300 group-hover:scale-105">
-            MT
-          </div>
+          <Image
+            src="/images/logo.png"
+            alt="Mike Tintner Productions"
+            width={40}
+            height={40}
+            className="transition-transform duration-300 group-hover:scale-105"
+          />
           <span className="text-xl font-bold tracking-tight hidden sm:block">
-            Mike Tintner{" "}
+            <span className="text-white" style={{ textShadow: "0 0 1px #000, 0 0 2px #000, 1px 1px 2px #000, -1px -1px 1px #000" }}>
+              Mike Tintner
+            </span>{" "}
             <span className="text-blue-400">Productions</span>
           </span>
         </Link>
@@ -63,7 +70,7 @@ export function Navbar() {
 
         <Link
           href="/login"
-          className="bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+          className="bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/50 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
         >
           Client Portal
         </Link>
@@ -97,7 +104,7 @@ export function Navbar() {
         <Link
           href="/login"
           onClick={() => setOpen(false)}
-          className="block bg-white/10 border border-white/20 text-white px-4 py-2 rounded-lg text-sm font-semibold text-center"
+          className="block bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/50 px-4 py-2 rounded-lg text-sm font-semibold text-center"
         >
           Client Portal
         </Link>
