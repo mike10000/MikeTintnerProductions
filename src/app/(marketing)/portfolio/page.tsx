@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 
 export const metadata: Metadata = {
   title: "Portfolio | Mike Tintner Productions",
@@ -8,56 +9,42 @@ export const metadata: Metadata = {
 
 const projects = [
   {
-    title: "Green Valley Farm",
+    title: "Planetary Farms",
     category: "Farm & Agriculture",
     description:
-      "A vibrant site for a local CSA with membership management, weekly harvest updates, and a farm store.",
+      "A vibrant site that is still growing for a farm in Northern Virginia focused on Permaculture, plant sales, ecommerce, and farm tours.",
     tags: ["E-Commerce", "Responsive", "CMS"],
+    url: "https://planetaryfarms.org",
     gradient: "from-amber-600/30 via-green-600/20 to-emerald-600/10",
     hoverBorder: "hover:border-amber-500/50",
   },
   {
-    title: "Riverkeepers Alliance",
-    category: "Environmental",
+    title: "Peace River Audubon Society",
+    category: "Non-Profit",
     description:
-      "A mission-driven site with action alerts, donation processing, and interactive river health maps.",
-    tags: ["Non-Profit", "Donations", "Maps"],
+      "A mission-driven site for a local nonprofit dedicated to conservation and birding.",
+    tags: ["Non-Profit", "Donations", "Bookings"],
+    url: "https://peaceriveraudubonsociety.org",
     gradient: "from-emerald-600/30 via-teal-600/20 to-cyan-600/10",
     hoverBorder: "hover:border-emerald-500/50",
   },
   {
-    title: "Main Street Bakery",
-    category: "Small Business",
+    title: "Planetary Music",
+    category: "Music & Talent",
     description:
-      "A warm, inviting site with online ordering, catering request forms, and Google Maps integration.",
-    tags: ["Local SEO", "Orders", "Responsive"],
-    gradient: "from-orange-600/30 via-rose-600/20 to-pink-600/10",
-    hoverBorder: "hover:border-orange-500/50",
-  },
-  {
-    title: "The Hollow Notes",
-    category: "Musician",
-    description:
-      "A bold artist site with embedded music player, tour dates, merch shop, and press kit downloads.",
-    tags: ["Music", "E-Commerce", "EPK"],
+      "Talent and music booking services focused on connecting local musicians with venues.",
+    tags: ["Music"],
+    url: null,
     gradient: "from-violet-600/30 via-purple-600/20 to-indigo-600/10",
     hoverBorder: "hover:border-violet-500/50",
   },
   {
-    title: "Community Food Shelf",
+    title: "Charlotte Harbor Environmental Center",
     category: "Non-Profit",
     description:
-      "Streamlined donation and volunteer sign-up platform with impact reporting dashboards.",
-    tags: ["Donations", "Volunteers", "Analytics"],
-    gradient: "from-rose-600/30 via-red-600/20 to-orange-600/10",
-    hoverBorder: "hover:border-rose-500/50",
-  },
-  {
-    title: "Summit Trail Guides",
-    category: "Small Business",
-    description:
-      "Adventure booking platform with calendar integration, guide profiles, and photo galleries.",
-    tags: ["Booking", "Gallery", "Mobile"],
+      "Improved website and user experience for a leading environmental education center.",
+    tags: ["Non-Profit", "Donations", "Bookings"],
+    url: "https://checflorida.org",
     gradient: "from-sky-600/30 via-blue-600/20 to-indigo-600/10",
     hoverBorder: "hover:border-sky-500/50",
   },
@@ -82,15 +69,15 @@ export default function PortfolioPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
+            {projects.map((project) => {
+              const cardContent = (
               <div
-                key={project.title}
                 className={`
                   relative overflow-hidden
                   bg-surface border border-border rounded-xl
                   transition-all duration-500 ease-out
                   hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/5
-                  group cursor-default
+                  group ${project.url ? "cursor-pointer" : "cursor-default"}
                   ${project.hoverBorder}
                 `}
               >
@@ -137,7 +124,19 @@ export default function PortfolioPage() {
 
                 <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-primary/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
               </div>
-            ))}
+              );
+              return (
+                <Fragment key={project.title}>
+                  {project.url ? (
+                    <a href={project.url} target="_blank" rel="noopener noreferrer" className="block">
+                      {cardContent}
+                    </a>
+                  ) : (
+                    cardContent
+                  )}
+                </Fragment>
+              );
+            })}
           </div>
         </div>
       </section>
