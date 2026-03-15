@@ -30,6 +30,7 @@ export function HeroCanvas() {
     let animationId: number;
 
     function resize() {
+      if (!canvas) return;
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     }
