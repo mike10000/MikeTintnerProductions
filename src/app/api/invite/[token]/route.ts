@@ -39,6 +39,7 @@ export async function GET(
     full_name: lead?.full_name ?? "",
     email: lead?.email ?? "",
     organization: lead?.organization ?? null,
+    custom_message: invite.custom_message ?? "",
     estimate: invite.estimate ?? "",
     meeting_link: invite.meeting_link ?? "",
   });

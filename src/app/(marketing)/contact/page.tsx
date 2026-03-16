@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { submitContact } from "./actions";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -16,24 +16,28 @@ export default function ContactPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    const supabase = createClient();
-    const { error: insertError } = await supabase.from("quote_leads").insert({
-      full_name: formData.name.trim(),
-      email: formData.email.trim(),
-      organization: formData.organization.trim() || null,
-      org_type: formData.type || null,
-      message: formData.message.trim(),
-    });
-    setSubmitting(false);
-    if (insertError) {
-      setError("Something went wrong. Please try again or email us directly.");
-      return;
+    try {
+      const result = await submitContact({
+        name: formData.name,
+        email: formData.email,
+        message: formData.message,
+        organization: formData.organization || undefined,
+        type: formData.type || undefined,
+      });
+      if (result.success) {
+        setSubmitted(true);
+      } else {
+        setError(result.error);
+      }
+    } catch {
+      setError("Something went wrong. Please try again or email us at info@MikeTintnerProductions.com.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitted(true);
   }
 
   return (
@@ -64,8 +68,7 @@ export default function ContactPage() {
                     Message Sent!
                   </h3>
                   <p className="text-muted">
-                    Thanks for reaching out. We&apos;ll be in touch within 24
-                    hours.
+                    Thanks for reaching out. Check your email for more information on how to get started with our client portal and set up a time for your free consultation.
                   </p>
                 </div>
               ) : (
@@ -77,6 +80,7 @@ export default function ContactPage() {
                       </label>
                       <input
                         type="text"
+                        name="name"
                         required
                         value={formData.name}
                         onChange={(e) =>
@@ -110,6 +114,7 @@ export default function ContactPage() {
                       </label>
                       <input
                         type="text"
+                        name="organization"
                         value={formData.organization}
                         onChange={(e) =>
                           setFormData({
@@ -126,6 +131,7 @@ export default function ContactPage() {
                         Type of Organization
                       </label>
                       <select
+                        name="type"
                         value={formData.type}
                         onChange={(e) =>
                           setFormData({ ...formData, type: e.target.value })
@@ -150,6 +156,7 @@ export default function ContactPage() {
                       Tell Us About Your Project *
                     </label>
                     <textarea
+                      name="message"
                       required
                       rows={5}
                       value={formData.message}

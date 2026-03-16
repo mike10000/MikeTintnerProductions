@@ -9,6 +9,8 @@ import {
   MessageSquare,
   Kanban,
   ArrowRight,
+  FileSignature,
+  CheckCircle,
 } from "lucide-react";
 
 export default async function AdminDashboard() {
@@ -47,6 +49,33 @@ export default async function AdminDashboard() {
     .from("boards")
     .select("*", { count: "exact", head: true });
 
+  const { data: approvedQuotes } = await supabase
+    .from("quotes")
+    .select("id, client_id, total, accepted_at, profiles(full_name, company_name)")
+    .eq("status", "accepted")
+    .order("accepted_at", { ascending: false })
+    .limit(10);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: todayTasks } = await supabase
+    .from("tasks")
+    .select(`
+      id,
+      title,
+      due_date,
+      priority,
+      board_columns(
+        board_id,
+        boards(
+          id,
+          name,
+          client_id
+        )
+      )
+    `)
+    .eq("due_date", today)
+    .order("priority", { ascending: false });
+
   const stats = [
     { label: "Clients", count: clientCount ?? 0, href: "/admin/clients", icon: Users },
     { label: "Active Orders", count: orderCount ?? 0, href: "/admin/work-orders", icon: ClipboardList },
@@ -65,7 +94,7 @@ export default async function AdminDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {stats.map((stat) => (
           <Link
             key={stat.label}
@@ -83,6 +112,95 @@ export default async function AdminDashboard() {
             <p className="text-muted text-sm">{stat.label}</p>
           </Link>
         ))}
+      </div>
+
+      <div className="space-y-6">
+        {(approvedQuotes?.length ?? 0) > 0 && (
+          <div className="bg-surface-light border border-border rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <CheckCircle size={20} className="text-green-400" />
+              Approved quotes — send contract & invoice
+            </h2>
+            <ul className="space-y-2">
+            {approvedQuotes?.map((q: { id: string; client_id: string; total: number; profiles?: { full_name: string; company_name: string | null } | null }) => (
+              <li key={q.id}>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-surface hover:bg-surface-lighter transition-colors">
+                  <span className="text-white">
+                    {(q.profiles as { full_name?: string; company_name?: string | null })?.full_name ||
+                      (q.profiles as { full_name?: string; company_name?: string | null })?.company_name ||
+                      "Client"}
+                  </span>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/admin/contracts?client=${q.client_id}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary-light hover:bg-primary/30 text-xs font-medium transition-colors"
+                    >
+                      <FileSignature size={14} />
+                      Contract
+                    </Link>
+                    <Link
+                      href={`/admin/invoices?client=${q.client_id}&quote=${q.id}`}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary-light hover:bg-primary/30 text-xs font-medium transition-colors"
+                    >
+                      <Receipt size={14} />
+                      Invoice
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            ))}
+            </ul>
+            <Link
+              href="/admin/quotes"
+              className="inline-block mt-4 text-primary-light hover:text-white text-sm font-medium"
+            >
+              View all quotes →
+            </Link>
+          </div>
+        )}
+
+        {(todayTasks?.length ?? 0) > 0 && (
+          <div className="bg-surface-light border border-border rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Kanban size={20} />
+              Due today
+            </h2>
+            <ul className="space-y-2">
+            {(todayTasks ?? []).map((task: {
+              id: string;
+              title: string;
+              priority: string;
+              board_columns?: { boards?: { id: string; name: string } } | null;
+            }) => (
+              <li key={task.id}>
+                <Link
+                  href={`/admin/boards/${task.board_columns?.boards?.id}`}
+                  className="flex items-center justify-between p-3 rounded-lg bg-surface hover:bg-surface-lighter transition-colors group"
+                >
+                  <span className="text-white group-hover:text-primary-light">{task.title}</span>
+                  <span className="text-muted text-sm">
+                    {task.board_columns?.boards?.name ?? "Board"}
+                    {task.priority !== "medium" && (
+                      <span className={`ml-2 text-xs ${
+                        task.priority === "urgent" ? "text-red-400" :
+                        task.priority === "high" ? "text-amber-400" : "text-muted"
+                      }`}>
+                        {task.priority}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              </li>
+            ))}
+            </ul>
+            <Link
+              href="/admin/boards"
+              className="inline-block mt-4 text-primary-light hover:text-white text-sm font-medium"
+            >
+              View all boards →
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

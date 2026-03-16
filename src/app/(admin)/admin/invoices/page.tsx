@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Invoice, LineItem, Profile, InvoiceStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ const emptyLineItem: LineItem = {
 };
 
 export default function AdminInvoicesPage() {
+  const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<InvoiceWithProfile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,11 +52,43 @@ export default function AdminInvoicesPage() {
   ]);
   const [formDueDate, setFormDueDate] = useState("");
   const [formStatus, setFormStatus] = useState<"draft" | "sent">("draft");
+  const [formQuoteId, setFormQuoteId] = useState<string | null>(null);
 
   useEffect(() => {
     loadInvoices();
     loadClients();
   }, []);
+
+  useEffect(() => {
+    const clientId = searchParams.get("client");
+    const quoteId = searchParams.get("quote");
+    if (clientId && clients.length > 0) {
+      setFormClientId(clientId);
+      setFormQuoteId(quoteId);
+      setModalOpen(true);
+      if (quoteId) {
+        loadQuoteForInvoice(quoteId);
+      }
+    }
+  }, [searchParams, clients]);
+
+  async function loadQuoteForInvoice(quoteId: string) {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("quotes")
+      .select("line_items, total")
+      .eq("id", quoteId)
+      .single();
+    if (data?.line_items && Array.isArray(data.line_items)) {
+      setFormLineItems(
+        (data.line_items as LineItem[]).map((li) => ({
+          description: li.description,
+          quantity: li.quantity,
+          unit_price: li.unit_price,
+        }))
+      );
+    }
+  }
 
   async function loadInvoices() {
     const supabase = createClient();
@@ -128,6 +162,7 @@ export default function AdminInvoicesPage() {
     setFormLineItems([{ ...emptyLineItem }]);
     setFormDueDate(defaultDue.toISOString().slice(0, 10));
     setFormStatus("draft");
+    setFormQuoteId(null);
     setModalOpen(true);
   }
 

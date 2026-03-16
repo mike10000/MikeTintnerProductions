@@ -16,6 +16,11 @@ import {
   Globe,
   Plus,
   FileSignature,
+  Kanban,
+  ExternalLink,
+  FolderOpen,
+  Download,
+  Upload,
 } from "lucide-react";
 
 type ClientProfile = Profile & { email?: string };
@@ -43,6 +48,20 @@ type ClientContract = {
   created_at: string;
 };
 
+type ClientBoard = {
+  id: string;
+  name: string;
+  client_id: string | null;
+  created_at: string;
+};
+
+type ClientFile = {
+  id: string;
+  name: string;
+  file_url: string;
+  created_at: string;
+};
+
 function AdminClientsContent() {
   const searchParams = useSearchParams();
   const clientIdFromUrl = searchParams.get("client");
@@ -54,11 +73,15 @@ function AdminClientsContent() {
   const [clientStats, setClientStats] = useState<ClientStats | null>(null);
   const [clientWebsites, setClientWebsites] = useState<ClientWebsite[]>([]);
   const [clientContracts, setClientContracts] = useState<ClientContract[]>([]);
+  const [clientBoards, setClientBoards] = useState<ClientBoard[]>([]);
+  const [clientFiles, setClientFiles] = useState<ClientFile[]>([]);
+  const [fileUploading, setFileUploading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
   const [newSiteName, setNewSiteName] = useState("");
   const [newSiteUrl, setNewSiteUrl] = useState("");
   const [contractUploading, setContractUploading] = useState(false);
   const contractFileRef = useRef<HTMLInputElement>(null);
+  const clientFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadClients();
@@ -110,7 +133,7 @@ function AdminClientsContent() {
     setStatsLoading(true);
     const supabase = createClient();
 
-    const [workOrdersRes, quotesRes, invoicesRes, websitesRes, contractsRes] = await Promise.all([
+    const [workOrdersRes, quotesRes, invoicesRes, websitesRes, contractsRes, boardsRes, filesRes] = await Promise.all([
       supabase
         .from("work_orders")
         .select("*", { count: "exact", head: true })
@@ -133,6 +156,16 @@ function AdminClientsContent() {
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("boards")
+        .select("id, name, client_id, created_at")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("client_files")
+        .select("id, name, file_url, created_at")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false }),
     ]);
 
     setClientStats({
@@ -142,6 +175,8 @@ function AdminClientsContent() {
     });
     setClientWebsites(websitesRes.data ?? []);
     setClientContracts(contractsRes.data ?? []);
+    setClientBoards(boardsRes.data ?? []);
+    setClientFiles(filesRes.data ?? []);
     setStatsLoading(false);
   }
 
@@ -196,11 +231,45 @@ function AdminClientsContent() {
     loadClientStats(selectedClient.id);
   }
 
+  async function uploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedClient) return;
+
+    const supabase = createClient();
+    setFileUploading(true);
+    const path = `${selectedClient.id}/uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const { data: uploadData, error } = await supabase.storage
+      .from("client-files")
+      .upload(path, file, { upsert: true });
+
+    if (error) {
+      setFileUploading(false);
+      e.target.value = "";
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from("client-files").getPublicUrl(uploadData.path);
+    await supabase.from("client_files").insert({
+      client_id: selectedClient.id,
+      name: file.name,
+      file_path: uploadData.path,
+      file_url: urlData.publicUrl,
+      mime_type: file.type || null,
+    });
+
+    setFileUploading(false);
+    e.target.value = "";
+    loadClientStats(selectedClient.id);
+  }
+
   function handleSelectClient(client: ClientProfile) {
     if (selectedClient?.id === client.id) {
       setSelectedClient(null);
       setClientStats(null);
       setClientWebsites([]);
+      setClientContracts([]);
+      setClientBoards([]);
+      setClientFiles([]);
       return;
     }
     setSelectedClient(client);
@@ -309,6 +378,9 @@ function AdminClientsContent() {
                     setSelectedClient(null);
                     setClientStats(null);
                     setClientWebsites([]);
+                    setClientContracts([]);
+                    setClientBoards([]);
+                    setClientFiles([]);
                   }}
                   className="text-muted hover:text-white transition-colors p-1"
                   aria-label="Close"
@@ -391,6 +463,30 @@ function AdminClientsContent() {
 
               <div className="mt-4 pt-4 border-t border-border">
                 <h4 className="text-white font-medium text-sm mb-2 flex items-center gap-2">
+                  <Kanban size={16} />
+                  Task Boards
+                </h4>
+                {clientBoards.length > 0 ? (
+                  <ul className="space-y-1 mb-2">
+                    {clientBoards.map((b) => (
+                      <li key={b.id}>
+                        <a
+                          href={`/admin/boards/${b.id}`}
+                          className="flex items-center gap-2 text-sm text-primary-light hover:text-white"
+                        >
+                          {b.name}
+                          <ExternalLink size={12} />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted text-sm mb-2">No task boards linked</p>
+                )}
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="text-white font-medium text-sm mb-2 flex items-center gap-2">
                   <FileSignature size={16} />
                   Contracts
                 </h4>
@@ -419,6 +515,45 @@ function AdminClientsContent() {
                   className="text-sm text-primary-light hover:text-white"
                 >
                   {contractUploading ? "Uploading..." : "+ Upload contract for client"}
+                </button>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="text-white font-medium text-sm mb-2 flex items-center gap-2">
+                  <FolderOpen size={16} />
+                  Files
+                </h4>
+                {(clientFiles ?? []).length > 0 && (
+                  <ul className="space-y-1 mb-3">
+                    {(clientFiles ?? []).map((f) => (
+                      <li key={f.id} className="flex items-center justify-between text-sm">
+                        <span className="text-muted truncate max-w-[140px]">{f.name}</span>
+                        <a
+                          href={f.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={f.name}
+                          className="text-primary-light hover:text-white shrink-0"
+                        >
+                          <Download size={14} />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <input
+                  ref={clientFileRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.csv,.txt,image/jpeg,image/png,image/jpg,image/gif,image/webp"
+                  onChange={uploadFile}
+                />
+                <button
+                  onClick={() => clientFileRef.current?.click()}
+                  disabled={fileUploading}
+                  className="text-sm text-primary-light hover:text-white"
+                >
+                  {fileUploading ? "Uploading..." : "+ Upload file for client"}
                 </button>
               </div>
             </div>

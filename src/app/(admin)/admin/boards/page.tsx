@@ -2,18 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Board } from "@/lib/types";
+import type { Board, Profile } from "@/lib/types";
 import Link from "next/link";
 import { Kanban, Plus, Trash2 } from "lucide-react";
 
 export default function BoardsPage() {
   const [boards, setBoards] = useState<Board[]>([]);
+  const [clients, setClients] = useState<Profile[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
+  const [clientId, setClientId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadBoards();
+    loadClients();
   }, []);
 
   async function loadBoards() {
@@ -27,6 +30,17 @@ export default function BoardsPage() {
     setLoading(false);
   }
 
+  async function loadClients() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("role", "client")
+      .order("full_name");
+
+    setClients(data || []);
+  }
+
   async function createBoard(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
@@ -34,7 +48,10 @@ export default function BoardsPage() {
     const supabase = createClient();
     const { data: board } = await supabase
       .from("boards")
-      .insert({ name: name.trim() })
+      .insert({
+        name: name.trim(),
+        client_id: clientId || null,
+      })
       .select()
       .single();
 
@@ -50,6 +67,7 @@ export default function BoardsPage() {
     }
 
     setName("");
+    setClientId("");
     setShowForm(false);
     loadBoards();
   }
@@ -85,15 +103,30 @@ export default function BoardsPage() {
 
       {showForm && (
         <div className="bg-surface-light border border-border rounded-xl p-6 mb-6">
-          <form onSubmit={createBoard} className="flex gap-3">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Board name (e.g. 'Client X Website')"
-              className="flex-1 bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted focus:outline-none focus:border-primary transition-colors"
-              autoFocus
-            />
+          <form onSubmit={createBoard} className="space-y-3">
+            <div className="flex flex-wrap gap-3">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Board name (e.g. 'Client X Website')"
+                className="flex-1 min-w-[200px] bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted focus:outline-none focus:border-primary transition-colors"
+                autoFocus
+              />
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="bg-surface border border-border rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-primary min-w-[180px]"
+              >
+                <option value="">No client (general)</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.full_name} {c.company_name ? `(${c.company_name})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-3">
             <button
               type="submit"
               className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -107,6 +140,7 @@ export default function BoardsPage() {
             >
               Cancel
             </button>
+            </div>
           </form>
         </div>
       )}
@@ -130,6 +164,10 @@ export default function BoardsPage() {
                     <h3 className="text-white font-semibold">{board.name}</h3>
                   </div>
                   <p className="text-muted text-xs">
+                    {board.client_id
+                      ? (clients.find((c) => c.id === board.client_id)?.full_name ?? "Client")
+                      : "No client"}
+                    {" · "}
                     Created {new Date(board.created_at).toLocaleDateString()}
                   </p>
                 </Link>

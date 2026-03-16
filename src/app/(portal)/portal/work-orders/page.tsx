@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { WorkOrder } from "@/lib/types";
-import { Plus, Clock, CheckCircle, AlertCircle, XCircle, Paperclip, X } from "lucide-react";
+import { Plus, Clock, CheckCircle, AlertCircle, XCircle, Paperclip, X, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<
@@ -26,6 +27,7 @@ const statusConfig: Record<
 };
 
 export default function WorkOrdersPage() {
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -34,11 +36,19 @@ export default function WorkOrdersPage() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadOrders();
   }, []);
+
+  useEffect(() => {
+    const orderId = searchParams.get("order");
+    if (orderId && orders.some((o) => o.id === orderId)) {
+      setExpandedId(orderId);
+    }
+  }, [searchParams, orders]);
 
   async function loadOrders() {
     const supabase = createClient();
@@ -237,47 +247,82 @@ export default function WorkOrdersPage() {
           {orders.map((order) => {
             const status = statusConfig[order.status];
             const StatusIcon = status?.icon || Clock;
+            const isExpanded = expandedId === order.id;
             return (
               <div
                 key={order.id}
-                className="bg-surface-light border border-border rounded-xl p-5 hover:border-primary/50 transition-colors"
+                className="bg-surface-light border border-border rounded-xl overflow-hidden"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-white font-medium">{order.title}</h3>
-                    <p className="text-muted text-sm mt-1 line-clamp-2">
-                      {order.description}
-                    </p>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                  className="w-full text-left p-5 hover:border-primary/50 transition-colors border border-transparent rounded-xl"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-white font-medium">{order.title}</h3>
+                      <p className={cn(
+                        "text-muted text-sm mt-1",
+                        !isExpanded && "line-clamp-2"
+                      )}>
+                        {order.description}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      <div
+                        className={cn(
+                          "flex items-center gap-1.5 text-sm font-medium",
+                          status?.color
+                        )}
+                      >
+                        <StatusIcon size={14} />
+                        {status?.label}
+                      </div>
+                      {isExpanded ? (
+                        <ChevronUp size={18} className="text-muted flex-shrink-0" />
+                      ) : (
+                        <ChevronDown size={18} className="text-muted flex-shrink-0" />
+                      )}
+                    </div>
                   </div>
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 text-sm font-medium ml-4",
-                      status?.color
-                    )}
-                  >
-                    <StatusIcon size={14} />
-                    {status?.label}
+                  <div className="flex items-center gap-4 mt-3 text-xs text-muted">
+                    <span>
+                      Priority:{" "}
+                      <span className="capitalize">{order.priority}</span>
+                    </span>
+                    <span>
+                      Submitted:{" "}
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </span>
                   </div>
-                </div>
-                <div className="flex items-center gap-4 mt-3 text-xs text-muted">
-                  <span>
-                    Priority:{" "}
-                    <span className="capitalize">{order.priority}</span>
-                  </span>
-                  <span>
-                    Submitted:{" "}
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                {order.attachments?.length ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {order.attachments.map((a, i) => (
-                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-light hover:text-white">
-                        📎 {a.name}
-                      </a>
-                    ))}
+                </button>
+                {isExpanded && (
+                  <div className="px-5 pb-5 pt-0 border-t border-border mt-0">
+                    <div className="mt-3">
+                      <p className="text-muted text-xs font-medium uppercase tracking-wide mb-1">Full details</p>
+                      <p className="text-white text-sm whitespace-pre-wrap">{order.description}</p>
+                    </div>
+                    {order.attachments?.length ? (
+                      <div className="mt-4">
+                        <p className="text-muted text-xs font-medium uppercase tracking-wide mb-2">Attachments</p>
+                        <div className="flex flex-wrap gap-2">
+                          {order.attachments.map((a, i) => (
+                            <a
+                              key={i}
+                              href={a.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface border border-border text-primary-light hover:text-white hover:border-primary/50 text-sm transition-colors"
+                            >
+                              <Paperclip size={14} />
+                              {a.name}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                )}
               </div>
             );
           })}

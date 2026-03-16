@@ -70,24 +70,31 @@ export function SignContractModal({ contract, onClose, onSigned }: SignContractM
 
       const signatureImage = await pdfDoc.embedPng(pngBytes);
 
-      // Scale signature to reasonable size (e.g. 150px wide) and place at bottom
-      const sigWidth = 150;
+      // Place signature and date where template says "Client Signature" and "Date" (bottom left)
+      const sigWidth = 180;
       const sigHeight = (signatureImage.height / signatureImage.width) * sigWidth;
-      const margin = 50;
+      const leftMargin = 72;
+      const sigY = 95;  // above the Date line
+      const dateY = 70; // where "Date" appears in template
 
       lastPage.drawImage(signatureImage, {
-        x: width - sigWidth - margin,
-        y: margin,
+        x: leftMargin,
+        y: sigY,
         width: sigWidth,
         height: sigHeight,
       });
 
-      // Add "Signed on" text
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      lastPage.drawText(`Signed on ${new Date().toLocaleDateString()}`, {
-        x: width - sigWidth - margin,
-        y: margin - 14,
-        size: 10,
+      // Add the selected date where "Date" appears in the template
+      const font = pdfDoc.embedStandardFont(StandardFonts.Helvetica);
+      const displayDate = new Date(signDate).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      lastPage.drawText(displayDate, {
+        x: leftMargin,
+        y: dateY,
+        size: 12,
         font,
       });
 
@@ -106,12 +113,13 @@ export function SignContractModal({ contract, onClose, onSigned }: SignContractM
 
       const { data: urlData } = supabase.storage.from("client-files").getPublicUrl(path);
 
-      // Update contract
+      // Update contract (use selected sign date)
+      const signedAtIso = new Date(signDate).toISOString();
       const { error: updateError } = await supabase
         .from("client_contracts")
         .update({
           status: "signed",
-          signed_at: new Date().toISOString(),
+          signed_at: signedAtIso,
           signed_file_url: urlData.publicUrl,
         })
         .eq("id", contract.id);

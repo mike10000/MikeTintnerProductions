@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { leadId, estimate, meetingLink } = await request.json();
+    const { leadId, customMessage, estimate, meetingLink } = await request.json();
     if (!leadId) {
       return NextResponse.json({ error: "leadId required" }, { status: 400 });
     }
@@ -57,6 +57,7 @@ export async function POST(request: Request) {
       .insert({
         lead_id: leadId,
         token,
+        custom_message: customMessage?.trim() || null,
         estimate: estimate?.trim() || null,
         meeting_link: meetingLink?.trim() || null,
         created_by: user.id,
@@ -81,9 +82,12 @@ export async function POST(request: Request) {
     const emailResult = await sendInviteEmail({
       to: lead.email,
       leadName: lead.full_name,
+      customMessage: customMessage?.trim() || undefined,
       estimate: estimate?.trim() || "",
       meetingLink: meetingLink?.trim() || "",
       inviteUrl,
+      loginEmail: lead.email,
+      temporaryPassword: "Welcome123!",
     });
 
     return NextResponse.json({

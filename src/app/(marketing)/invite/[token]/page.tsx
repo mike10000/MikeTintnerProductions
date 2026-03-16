@@ -6,10 +6,123 @@ import Link from "next/link";
 import Image from "next/image";
 import { CheckCircle, Calendar, DollarSign, Loader2, ExternalLink } from "lucide-react";
 
+function MeetingScheduler({
+  token,
+  existingLink,
+  onBooked,
+}: {
+  token: string;
+  existingLink?: string;
+  onBooked: (link: string) => void;
+}) {
+  const [slots, setSlots] = useState<{ start: string; end: string }[]>([]);
+  const [configured, setConfigured] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [booking, setBooking] = useState(false);
+  const [bookError, setBookError] = useState("");
+
+  useEffect(() => {
+    fetch(`/api/calendar/availability?token=${encodeURIComponent(token)}`)
+      .then((res) => res.json())
+      .then((d) => {
+        setSlots(d.slots || []);
+        setConfigured(d.configured ?? false);
+      })
+      .finally(() => setLoadingSlots(false));
+  }, [token]);
+
+  async function handleBookSlot(slot: { start: string; end: string }) {
+    setBooking(true);
+    setBookError("");
+    try {
+      const res = await fetch("/api/calendar/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, slotStart: slot.start, slotEnd: slot.end }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to book");
+      if (data.meetLink) onBooked(data.meetLink);
+    } catch (err) {
+      setBookError(err instanceof Error ? err.message : "Failed to book");
+    } finally {
+      setBooking(false);
+    }
+  }
+
+  const displayLink = existingLink;
+
+  if (displayLink) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 text-primary-light font-medium mb-2">
+          <Calendar size={18} />
+          Free consultation
+        </div>
+        <a
+          href={displayLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-primary-light hover:text-white transition-colors"
+        >
+          Join your Google Meet
+          <ExternalLink size={14} />
+        </a>
+      </div>
+    );
+  }
+
+  if (!configured || slots.length === 0) {
+    if (!configured) return null;
+    if (loadingSlots) {
+      return (
+        <div className="flex items-center gap-2 text-muted text-sm">
+          <Loader2 size={16} className="animate-spin" />
+          Loading available times...
+        </div>
+      );
+    }
+    return (
+      <div className="text-muted text-sm">
+        No available times in the next 2 weeks. Please contact us to schedule.
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-primary-light font-medium mb-2">
+        <Calendar size={18} />
+        Pick a time for your free consultation
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {slots.map((slot) => (
+          <button
+            key={slot.start}
+            onClick={() => handleBookSlot(slot)}
+            disabled={booking}
+            className="px-4 py-2 rounded-lg bg-surface hover:bg-primary/20 border border-border text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {new Date(slot.start).toLocaleString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </button>
+        ))}
+      </div>
+      {bookError && <p className="text-red-400 text-sm mt-2">{bookError}</p>}
+    </div>
+  );
+}
+
 type InviteData = {
   full_name: string;
   email: string;
   organization: string | null;
+  custom_message: string;
   estimate: string;
   meeting_link: string;
 };
@@ -24,6 +137,7 @@ export default function InviteAcceptPage() {
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [meetingLink, setMeetingLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -123,6 +237,11 @@ export default function InviteAcceptPage() {
         </div>
 
         <div className="bg-surface-light border border-border rounded-xl p-6 space-y-6">
+          {data?.custom_message && (
+            <div>
+              <p className="text-white whitespace-pre-wrap">{data.custom_message}</p>
+            </div>
+          )}
           {data?.estimate && (
             <div>
               <div className="flex items-center gap-2 text-primary-light font-medium mb-2">
@@ -133,23 +252,11 @@ export default function InviteAcceptPage() {
             </div>
           )}
 
-          {data?.meeting_link && (
-            <div>
-              <div className="flex items-center gap-2 text-primary-light font-medium mb-2">
-                <Calendar size={18} />
-                Free consultation
-              </div>
-              <a
-                href={data.meeting_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-primary-light hover:text-white transition-colors"
-              >
-                Book your free consultation
-                <ExternalLink size={14} />
-              </a>
-            </div>
-          )}
+          <MeetingScheduler
+            token={token}
+            existingLink={meetingLink || data?.meeting_link}
+            onBooked={(link) => setMeetingLink(link)}
+          />
 
           <div className="pt-4 border-t border-border">
             <p className="text-muted text-sm mb-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -33,6 +33,11 @@ function LoginForm() {
   const [companyName, setCompanyName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (err === "auth_failed") setError("Authentication failed. Please try again.");
+  }, [searchParams]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -158,6 +163,12 @@ function LoginForm() {
                   className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted focus:outline-none focus:border-primary transition-colors"
                   placeholder="Your password"
                 />
+                <Link
+                  href={`/forgot-password${redirect !== "/portal" ? `?redirect=${encodeURIComponent(redirect)}` : ""}`}
+                  className="block text-primary-light hover:text-white text-sm mt-1.5"
+                >
+                  Forgot password?
+                </Link>
               </div>
               <button
                 type="submit"

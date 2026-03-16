@@ -46,7 +46,7 @@ export default function BoardDetailPage() {
   const params = useParams();
   const boardId = params.id as string;
 
-  const [board, setBoard] = useState<Board | null>(null);
+  const [board, setBoard] = useState<(Board & { client?: Profile }) | null>(null);
   const [columns, setColumns] = useState<BoardColumn[]>([]);
   const [teamMembers, setTeamMembers] = useState<Profile[]>([]);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -60,11 +60,17 @@ export default function BoardDetailPage() {
 
     const { data: boardData } = await supabase
       .from("boards")
-      .select("*")
+      .select("*, profiles!client_id(full_name, company_name)")
       .eq("id", boardId)
       .single();
 
-    setBoard(boardData);
+    if (boardData) {
+      const profiles = (boardData as { profiles?: Profile | null }).profiles;
+      const b = boardData as Board & { client?: Profile; profiles?: Profile };
+      if (profiles) b.client = profiles;
+      delete b.profiles;
+      setBoard(b);
+    }
 
     const { data: colData } = await supabase
       .from("board_columns")
@@ -232,6 +238,17 @@ export default function BoardDetailPage() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{board.name}</h1>
           <p className="text-muted text-sm mt-0.5">
+            {board.client_id ? (
+              <Link
+                href={`/admin/clients?client=${board.client_id}`}
+                className="text-primary-light hover:text-white"
+              >
+                {board.client?.full_name || board.client?.company_name || "Client"}
+              </Link>
+            ) : (
+              "No client linked"
+            )}
+            {" · "}
             Drag and drop tasks between columns
           </p>
         </div>

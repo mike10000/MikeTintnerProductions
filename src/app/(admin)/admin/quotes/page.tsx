@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Quote, LineItem, Profile, QuoteStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import {
   FileText,
   Plus,
@@ -12,6 +14,8 @@ import {
   Loader2,
   X,
   DollarSign,
+  FileSignature,
+  Receipt,
 } from "lucide-react";
 
 type QuoteWithProfile = Quote & {
@@ -37,6 +41,7 @@ const emptyLineItem: LineItem = {
 };
 
 export default function AdminQuotesPage() {
+  const searchParams = useSearchParams();
   const [quotes, setQuotes] = useState<QuoteWithProfile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,12 +52,47 @@ export default function AdminQuotesPage() {
   const [formLineItems, setFormLineItems] = useState<LineItem[]>([
     { ...emptyLineItem },
   ]);
+  const [formIntroText, setFormIntroText] = useState("");
   const [formStatus, setFormStatus] = useState<"draft" | "sent">("draft");
+  const [formWorkOrderId, setFormWorkOrderId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     loadQuotes();
     loadClients();
   }, []);
+
+  useEffect(() => {
+    const create = searchParams.get("create");
+    const workOrderId = searchParams.get("work_order");
+    const clientId = searchParams.get("client");
+    if (create === "1" && clientId && clients.length > 0) {
+      setFormClientId(clientId);
+      setFormWorkOrderId(workOrderId);
+      setModalOpen(true);
+      if (workOrderId) {
+        loadWorkOrderForQuote(workOrderId);
+      }
+    }
+  }, [searchParams, clients]);
+
+  async function loadWorkOrderForQuote(workOrderId: string) {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("work_orders")
+      .select("title, description")
+      .eq("id", workOrderId)
+      .single();
+    if (data) {
+      setFormLineItems([
+        {
+          description: data.title + (data.description ? `\n${data.description}` : ""),
+          quantity: 1,
+          unit_price: 0,
+        },
+      ]);
+    }
+  }
 
   async function loadQuotes() {
     const supabase = createClient();
@@ -107,12 +147,14 @@ export default function AdminQuotesPage() {
   function openCreateModal() {
     setFormClientId(clients[0]?.id ?? "");
     setFormLineItems([{ ...emptyLineItem }]);
+    setFormIntroText("");
     setFormStatus("draft");
     setModalOpen(true);
   }
 
   function closeModal() {
     setModalOpen(false);
+    setSaveError(null);
   }
 
   function addLineItem() {
@@ -139,20 +181,33 @@ export default function AdminQuotesPage() {
   async function handleSaveQuote() {
     if (!formClientId) return;
     setSaving(true);
+    setSaveError(null);
     const supabase = createClient();
-    const { error } = await supabase.from("quotes").insert({
+
+    const lineItems = formLineItems
+      .filter((li) => li.description.trim() || li.quantity > 0 || li.unit_price > 0)
+      .map((li) => ({
+        description: li.description,
+        quantity: Number(li.quantity) || 0,
+        unit_price: Number(li.unit_price) || 0,
+        ...(li.timeline?.trim() && { timeline: li.timeline.trim() }),
+      }));
+
+    const payload: Record<string, unknown> = {
       client_id: formClientId,
-      work_order_id: null,
-      line_items: formLineItems.filter(
-        (li) => li.description.trim() || li.quantity > 0 || li.unit_price > 0
-      ),
-      total: formTotal,
+      work_order_id: formWorkOrderId || null,
+      line_items: lineItems.length > 0 ? lineItems : [{ description: "Quote item", quantity: 1, unit_price: 0 }],
+      total: Number(formTotal) || 0,
       status: formStatus,
       valid_until: null,
-    });
+    };
+    const introVal = formIntroText.trim();
+    if (introVal) payload.intro_text = introVal;
+
+    const { error } = await supabase.from("quotes").insert(payload);
 
     if (error) {
-      console.error("Error creating quote:", error);
+      setSaveError(error.message);
       setSaving(false);
       return;
     }
@@ -239,6 +294,9 @@ export default function AdminQuotesPage() {
                   <th className="text-left text-muted text-sm font-medium px-5 py-4">
                     Created
                   </th>
+                  <th className="text-left text-muted text-sm font-medium px-5 py-4">
+                    Accepted
+                  </th>
                   <th className="text-left text-muted text-sm font-medium px-5 py-4 w-40">
                     Actions
                   </th>
@@ -279,7 +337,30 @@ export default function AdminQuotesPage() {
                       <td className="px-5 py-4 text-muted text-sm">
                         {formatDate(quote.created_at)}
                       </td>
+                      <td className="px-5 py-4 text-muted text-sm">
+                        {(quote as Quote & { accepted_at?: string | null }).accepted_at
+                          ? formatDate((quote as Quote & { accepted_at: string }).accepted_at)
+                          : "—"}
+                      </td>
                       <td className="px-5 py-4">
+                        {quote.status === "accepted" && (
+                          <div className="flex gap-2 mb-2">
+                            <Link
+                              href={`/admin/contracts?client=${quote.client_id}`}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary-light hover:bg-primary/30 text-xs font-medium transition-colors"
+                            >
+                              <FileSignature size={14} />
+                              Send contract
+                            </Link>
+                            <Link
+                              href={`/admin/invoices?client=${quote.client_id}&quote=${quote.id}`}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary-light hover:bg-primary/30 text-xs font-medium transition-colors"
+                            >
+                              <Receipt size={14} />
+                              Send invoice
+                            </Link>
+                          </div>
+                        )}
                         <div className="relative group">
                           <select
                             value={quote.status}
@@ -339,7 +420,7 @@ export default function AdminQuotesPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-2">
                   Client
@@ -356,6 +437,19 @@ export default function AdminQuotesPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Intro message (optional)
+                </label>
+                <textarea
+                  value={formIntroText}
+                  onChange={(e) => setFormIntroText(e.target.value)}
+                  placeholder="Add a paragraph to explain the quote to the client. This will appear in bold above the line items."
+                  rows={4}
+                  className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted focus:outline-none focus:border-primary transition-colors resize-none"
+                />
               </div>
 
               <div>
@@ -388,7 +482,7 @@ export default function AdminQuotesPage() {
                           }
                           className="w-full bg-surface-light border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-muted focus:outline-none focus:border-primary"
                         />
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <input
                             type="number"
                             placeholder="Qty"
@@ -416,7 +510,16 @@ export default function AdminQuotesPage() {
                                 parseFloat(e.target.value) || 0
                               )
                             }
-                            className="flex-1 bg-surface-light border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                            className="flex-1 min-w-24 bg-surface-light border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Timeline (e.g. 2-3 weeks)"
+                            value={item.timeline || ""}
+                            onChange={(e) =>
+                              updateLineItem(index, "timeline", e.target.value)
+                            }
+                            className="flex-1 min-w-32 bg-surface-light border border-border rounded-lg px-3 py-2 text-sm text-white placeholder-muted focus:outline-none focus:border-primary"
                           />
                         </div>
                       </div>
@@ -475,25 +578,33 @@ export default function AdminQuotesPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 p-5 border-t border-border">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 rounded-lg bg-surface border border-border text-muted hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveQuote}
-                disabled={saving || !formClientId}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-primary-light font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {saving ? (
-                  <Loader2 className="animate-spin" size={18} />
-                ) : (
-                  <FileText size={18} />
-                )}
-                Save Quote
-              </button>
+            <div className="flex-shrink-0 flex flex-col gap-3 p-5 border-t border-border bg-surface-light">
+              {saveError && (
+                <p className="text-red-400 text-sm">
+                  {saveError}
+                  {saveError.includes("intro_text") && " — Run migration: alter table quotes add column intro_text text;"}
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 rounded-lg bg-surface border border-border text-muted hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveQuote}
+                  disabled={saving || !formClientId}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary hover:bg-primary-dark text-primary-light font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {saving ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <FileText size={18} />
+                  )}
+                  {formStatus === "sent" ? "Save & Send Quote" : "Save Quote"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

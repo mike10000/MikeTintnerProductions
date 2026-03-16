@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
+  Bell,
   ClipboardList,
   FileText,
   Receipt,
@@ -46,7 +47,26 @@ export default async function PortalDashboard() {
     .eq("read", false)
     .neq("sender_id", user.id);
 
+  const { count: unreadNotifCount } = await supabase
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("read", false);
+
+  const { data: recentNotifications } = await supabase
+    .from("notifications")
+    .select("id, type, title, body, link_url, read, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(8);
+
   const stats = [
+    {
+      label: "Unread Notifications",
+      count: unreadNotifCount ?? 0,
+      href: "/portal/notifications",
+      icon: Bell,
+    },
     {
       label: "Active Work Orders",
       count: orderCount ?? 0,
@@ -85,6 +105,49 @@ export default async function PortalDashboard() {
       </div>
 
       <ClientWebsites />
+
+      {recentNotifications && recentNotifications.length > 0 && (
+        <div className="bg-surface-light border border-border rounded-xl p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-white font-semibold">Recent activity</h2>
+            <Link
+              href="/portal/notifications"
+              className="text-primary-light hover:text-white text-sm font-medium transition-colors"
+            >
+              View all
+            </Link>
+          </div>
+          <ul className="space-y-3">
+            {recentNotifications.map((n) => (
+              <li key={n.id}>
+                <Link
+                  href={n.link_url || "/portal"}
+                  className={`block p-3 rounded-lg border transition-colors hover:border-primary/50 ${
+                    n.read
+                      ? "bg-surface/50 border-border"
+                      : "bg-primary/5 border-primary/20"
+                  }`}
+                >
+                  <p className="text-white font-medium text-sm">{n.title}</p>
+                  {n.body && (
+                    <p className="text-muted text-xs mt-0.5 line-clamp-1">
+                      {n.body}
+                    </p>
+                  )}
+                  <p className="text-muted text-xs mt-1">
+                    {new Date(n.created_at).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((stat) => (

@@ -41,6 +41,8 @@ export interface Quote {
   total: number;
   status: QuoteStatus;
   valid_until: string | null;
+  intro_text: string | null;
+  accepted_at: string | null;
   created_at: string;
   profiles?: Profile;
 }
@@ -67,6 +69,7 @@ export interface LineItem {
   description: string;
   quantity: number;
   unit_price: number;
+  timeline?: string;
 }
 
 export interface Conversation {
@@ -93,8 +96,10 @@ export interface Board {
   id: string;
   name: string;
   work_order_id: string | null;
+  client_id: string | null;
   created_at: string;
   board_columns?: BoardColumn[];
+  profiles?: Profile;
 }
 
 export interface BoardColumn {
@@ -128,4 +133,36 @@ export interface TaskComment {
   body: string;
   created_at: string;
   profiles?: Profile;
+}
+
+export type NotificationType =
+  | "work_order_update"
+  | "quote_sent"
+  | "invoice_sent"
+  | "task_update"
+  | "new_message"
+  | "contract_ready";
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  link_url: string | null;
+  read: boolean;
+  email_sent: boolean;
+  created_at: string;
+}
+
+export interface NotificationPreferences {
+  user_id: string;
+  work_order_updates: boolean;
+  quote_updates: boolean;
+  invoice_updates: boolean;
+  task_updates: boolean;
+  new_messages: boolean;
+  contract_updates: boolean;
+  created_at: string;
+  updated_at: string;
 }

@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Fragment } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { WorkOrder, WorkOrderStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import {
   ClipboardList,
   ChevronDown,
+  ChevronUp,
   Clock,
   AlertCircle,
   CheckCircle,
   XCircle,
   Flag,
   Loader2,
+  Paperclip,
+  FileText,
 } from "lucide-react";
 
 type WorkOrderWithProfile = WorkOrder & {
@@ -72,6 +76,7 @@ export default function AdminWorkOrdersPage() {
     "all"
   );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -210,65 +215,86 @@ export default function AdminWorkOrdersPage() {
                   const StatusIcon = status?.icon ?? Clock;
                   const priority = priorityConfig[order.priority] ?? priorityConfig.medium;
                   const PriorityIcon = priority.icon;
+                  const isExpanded = expandedId === order.id;
 
                   return (
-                    <tr
-                      key={order.id}
-                      className="border-b border-border last:border-b-0 hover:bg-surface-lighter transition-colors"
-                    >
-                      <td className="px-5 py-4">
-                        <p className="font-medium text-white">{order.title}</p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-white">{getClientName(order)}</p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium",
-                            status.color,
-                            "bg-surface"
-                          )}
-                        >
-                          <StatusIcon size={12} />
-                          {status.label}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 text-xs font-medium",
-                            priority.color
-                          )}
-                        >
-                          {PriorityIcon && <PriorityIcon size={12} />}
-                          {priority.label}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-muted text-sm">
-                        {formatDate(order.created_at)}
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="relative group">
-                          <select
-                            value={order.status}
-                            onChange={(e) =>
-                              updateStatus(
-                                order.id,
-                                e.target.value as WorkOrderStatus
-                              )
-                            }
-                            disabled={updatingId === order.id}
+                    <Fragment key={order.id}>
+                      <tr
+                        key={order.id}
+                        className="border-b border-border last:border-b-0 hover:bg-surface-lighter transition-colors"
+                      >
+                        <td className="px-5 py-4">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                            className="flex items-center gap-2 text-left group"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp size={16} className="text-muted group-hover:text-white flex-shrink-0" />
+                            ) : (
+                              <ChevronDown size={16} className="text-muted group-hover:text-white flex-shrink-0" />
+                            )}
+                            <p className="font-medium text-white group-hover:text-primary-light">{order.title}</p>
+                          </button>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-white">{getClientName(order)}</p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
                             className={cn(
-                              "appearance-none bg-surface border border-border rounded-lg pl-3 pr-8 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors cursor-pointer",
-                              "disabled:opacity-60 disabled:cursor-not-allowed"
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium",
+                              status.color,
+                              "bg-surface"
                             )}
                           >
-                            {STATUS_OPTIONS.map((s) => (
-                              <option key={s} value={s}>
-                                {statusConfig[s].label}
-                              </option>
-                            ))}
+                            <StatusIcon size={12} />
+                            {status.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 text-xs font-medium",
+                              priority.color
+                            )}
+                          >
+                            {PriorityIcon && <PriorityIcon size={12} />}
+                            {priority.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-muted text-sm">
+                          {formatDate(order.created_at)}
+                        </td>
+                        <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/admin/quotes?create=1&work_order=${order.id}&client=${order.client_id}`}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary/20 text-primary-light hover:bg-primary/30 text-xs font-medium transition-colors whitespace-nowrap"
+                          >
+                            <FileText size={12} />
+                            Create quote
+                          </Link>
+                          <div className="relative group">
+                          <select
+                              value={order.status}
+                              onChange={(e) =>
+                                updateStatus(
+                                  order.id,
+                                  e.target.value as WorkOrderStatus
+                                )
+                              }
+                              disabled={updatingId === order.id}
+                              className={cn(
+                                "appearance-none bg-surface border border-border rounded-lg pl-3 pr-8 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors cursor-pointer",
+                                "disabled:opacity-60 disabled:cursor-not-allowed"
+                              )}
+                            >
+                              {STATUS_OPTIONS.map((s) => (
+                                <option key={s} value={s}>
+                                  {statusConfig[s].label}
+                                </option>
+                              )                            )}
                           </select>
                           <ChevronDown
                             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
@@ -280,9 +306,51 @@ export default function AdminWorkOrdersPage() {
                               size={14}
                             />
                           )}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="border-b border-border bg-surface/50">
+                          <td colSpan={6} className="px-5 py-4">
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-muted text-xs font-medium uppercase tracking-wide mb-1">Description</p>
+                                <p className="text-white text-sm whitespace-pre-wrap">{order.description}</p>
+                              </div>
+                              {order.attachments?.length ? (
+                                <div>
+                                  <p className="text-muted text-xs font-medium uppercase tracking-wide mb-2">Attachments</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {order.attachments.map((a: { name: string; url: string }, i: number) => (
+                                      <a
+                                        key={i}
+                                        href={a.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface border border-border text-primary-light hover:text-white hover:border-primary/50 text-sm transition-colors"
+                                      >
+                                        <Paperclip size={14} />
+                                        {a.name}
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+                              <div className="pt-2">
+                                <Link
+                                  href={`/admin/quotes?create=1&work_order=${order.id}&client=${order.client_id}`}
+                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-medium transition-colors"
+                                >
+                                  <FileText size={16} />
+                                  Create quote for this work order
+                                </Link>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>

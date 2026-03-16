@@ -41,8 +41,10 @@ export default function AdminLeadsPage() {
   } | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [inviteCustomMessage, setInviteCustomMessage] = useState("");
   const [inviteEstimate, setInviteEstimate] = useState("");
   const [inviteMeetingLink, setInviteMeetingLink] = useState("");
+  const [testingEmail, setTestingEmail] = useState(false);
 
   useEffect(() => {
     loadLeads();
@@ -77,6 +79,7 @@ export default function AdminLeadsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           leadId: selectedLead.id,
+          customMessage: inviteCustomMessage,
           estimate: inviteEstimate,
           meetingLink: inviteMeetingLink,
         }),
@@ -94,6 +97,27 @@ export default function AdminLeadsPage() {
       alert(err instanceof Error ? err.message : "Failed to create invite");
     } finally {
       setSending(null);
+    }
+  }
+
+  async function testGmail() {
+    setTestingEmail(true);
+    try {
+      const res = await fetch("/api/admin/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+      } else {
+        alert(data.error || "Failed to send test email");
+      }
+    } catch {
+      alert("Failed to send test email");
+    } finally {
+      setTestingEmail(false);
     }
   }
 
@@ -124,11 +148,22 @@ export default function AdminLeadsPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Quote Leads</h1>
-        <p className="text-muted text-sm mt-1">
-          Form submissions. Send an invite with estimate + meeting link — they approve to get portal access.
-        </p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Quote Leads</h1>
+          <p className="text-muted text-sm mt-1">
+            Contact form submissions appear here. Send invite → they approve → account created.
+          </p>
+        </div>
+        <button
+          onClick={testGmail}
+          disabled={testingEmail}
+          className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg border border-border hover:border-primary text-sm text-muted hover:text-white transition-colors disabled:opacity-50"
+          title="Verify Gmail SMTP is working"
+        >
+          {testingEmail ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+          Test Gmail
+        </button>
       </div>
 
       <div className="flex gap-2 mb-6">
@@ -221,6 +256,19 @@ export default function AdminLeadsPage() {
               >
                 <div>
                   <label className="block text-white text-sm font-medium mb-1.5 flex items-center gap-2">
+                    <Mail size={14} />
+                    Your message to the lead
+                  </label>
+                  <textarea
+                    value={inviteCustomMessage}
+                    onChange={(e) => setInviteCustomMessage(e.target.value)}
+                    placeholder="Hi! Thanks for reaching out. I'd love to discuss your project..."
+                    rows={4}
+                    className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-white text-sm font-medium mb-1.5 flex items-center gap-2">
                     <DollarSign size={14} />
                     Rough estimate
                   </label>
@@ -235,17 +283,17 @@ export default function AdminLeadsPage() {
                 <div>
                   <label className="block text-white text-sm font-medium mb-1.5 flex items-center gap-2">
                     <Calendar size={14} />
-                    Free consultation meeting link
+                    Google Meet link
                   </label>
                   <input
                     type="url"
                     value={inviteMeetingLink}
                     onChange={(e) => setInviteMeetingLink(e.target.value)}
-                    placeholder="https://calendar.google.com/... or https://meet.google.com/..."
+                    placeholder="https://meet.google.com/xxx-xxxx-xxx"
                     className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted"
                   />
                   <p className="text-muted text-xs mt-1">
-                    Google Meet or Calendar link for your free consultation
+                    Link for your free consultation call
                   </p>
                 </div>
                 <div className="flex gap-2">

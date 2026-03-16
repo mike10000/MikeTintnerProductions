@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Quote } from "@/lib/types";
-import { FileText, CheckCircle, XCircle } from "lucide-react";
+import Link from "next/link";
+import { FileText, CheckCircle, XCircle, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function formatMoney(val: number | string): string {
@@ -57,7 +58,10 @@ export default function QuotesPage() {
     const supabase = createClient();
     await supabase
       .from("quotes")
-      .update({ status: accept ? "accepted" : "declined" })
+      .update({
+        status: accept ? "accepted" : "declined",
+        ...(accept && { accepted_at: new Date().toISOString() }),
+      })
       .eq("id", quoteId);
     loadQuotes();
   }
@@ -119,12 +123,26 @@ export default function QuotesPage() {
                 </p>
               </div>
 
+              {quote.intro_text && (
+                <div className="mb-4 p-4 bg-surface/50 rounded-lg border border-border">
+                  <p className="text-white font-bold text-sm whitespace-pre-wrap">
+                    {quote.intro_text}
+                  </p>
+                </div>
+              )}
+
               <div className="border border-border rounded-lg overflow-hidden mb-4">
+                <p className="text-muted text-xs px-4 py-2 bg-surface border-b border-border italic">
+                  Note: timelines may vary
+                </p>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-surface">
                       <th className="text-left text-muted px-4 py-2 font-medium">
                         Item
+                      </th>
+                      <th className="text-left text-muted px-4 py-2 font-medium">
+                        Timeline
                       </th>
                       <th className="text-right text-muted px-4 py-2 font-medium">
                         Qty
@@ -147,6 +165,9 @@ export default function QuotesPage() {
                           <td className="text-white px-4 py-2">
                             {item.description}
                           </td>
+                          <td className="text-muted px-4 py-2">
+                            {(item as { timeline?: string }).timeline || "—"}
+                          </td>
                           <td className="text-muted px-4 py-2 text-right">
                             {item.quantity}
                           </td>
@@ -164,21 +185,31 @@ export default function QuotesPage() {
               </div>
 
               {quote.status === "sent" && (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => respondToQuote(quote.id, true)}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <CheckCircle size={16} />
-                    Accept Quote
-                  </button>
-                  <button
-                    onClick={() => respondToQuote(quote.id, false)}
-                    className="flex items-center gap-2 border border-border hover:border-red-500 text-muted hover:text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <XCircle size={16} />
-                    Decline
-                  </button>
+                <div className="mt-6 pt-6 border-t border-border space-y-4">
+                  <p className="text-white font-medium">Ready to proceed?</p>
+                  <div className="flex flex-wrap gap-3 items-center">
+                    <button
+                      onClick={() => respondToQuote(quote.id, true)}
+                      className="flex items-center gap-3 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl text-lg font-bold transition-colors shadow-lg shadow-green-600/20"
+                    >
+                      <CheckCircle size={24} />
+                      Accept Quote
+                    </button>
+                    <button
+                      onClick={() => respondToQuote(quote.id, false)}
+                      className="flex items-center gap-2 border border-border hover:border-red-500 text-muted hover:text-red-400 px-5 py-3 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <XCircle size={18} />
+                      Decline
+                    </button>
+                    <Link
+                      href={`/portal/messages?new=1&subject=${encodeURIComponent(`Quote #${quote.id.slice(0, 8)} - modifications needed`)}`}
+                      className="flex items-center gap-2 border border-border hover:border-primary text-muted hover:text-white px-5 py-3 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <MessageSquare size={18} />
+                      Request modifications
+                    </Link>
+                  </div>
                 </div>
               )}
 

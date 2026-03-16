@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation, Message } from "@/lib/types";
 import { MessageSquare, Send, Plus, ArrowLeft, Paperclip, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MessagesPage() {
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvo, setActiveConvo] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -23,6 +25,15 @@ export default function MessagesPage() {
   useEffect(() => {
     loadConversations();
   }, []);
+
+  useEffect(() => {
+    const subject = searchParams.get("subject");
+    const isNew = searchParams.get("new") === "1";
+    if (isNew && subject) {
+      setShowNewConvo(true);
+      setNewSubject(subject);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (activeConvo) loadMessages(activeConvo);

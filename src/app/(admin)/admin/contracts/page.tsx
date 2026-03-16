@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createPdfFromText } from "@/lib/pdf-utils";
 import {
@@ -10,6 +11,7 @@ import {
   Clock,
   X,
   FileText,
+  RefreshCw,
 } from "lucide-react";
 
 type Contract = {
@@ -36,6 +38,7 @@ type ContractTemplate = {
 type TaskOption = { id: string; title: string };
 
 export default function AdminContractsPage() {
+  const searchParams = useSearchParams();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [clients, setClients] = useState<{ id: string; full_name: string; company_name: string | null }[]>([]);
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
@@ -49,7 +52,9 @@ export default function AdminContractsPage() {
   const [createFile, setCreateFile] = useState<File | null>(null);
   const [createTemplateId, setCreateTemplateId] = useState("");
   const [createPrice, setCreatePrice] = useState("");
+  const [createContractName, setCreateContractName] = useState("");
   const [createTaskId, setCreateTaskId] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
@@ -58,6 +63,24 @@ export default function AdminContractsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Refresh when tab becomes visible (e.g. after client signs in another tab)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === "visible") loadData();
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, []);
+
+  useEffect(() => {
+    const clientId = searchParams.get("client");
+    if (clientId && clients.length > 0) {
+      setSelectedClient(clientId);
+      setShowCreate(true);
+      setCreateClientId(clientId);
+    }
+  }, [searchParams, clients]);
 
   async function loadData() {
     const supabase = createClient();
@@ -79,6 +102,9 @@ export default function AdminContractsPage() {
         .order("title"),
     ]);
 
+    if (contractsRes.error) {
+      console.error("Error loading contracts:", contractsRes.error);
+    }
     setContracts(contractsRes.data ?? []);
     setClients(clientsRes.data ?? []);
     setTemplates(templatesRes.data ?? []);
@@ -89,6 +115,7 @@ export default function AdminContractsPage() {
   async function handleCreateContract() {
     const supabase = createClient();
     setUploading(true);
+    setCreateError(null);
 
     let fileUrl: string;
     let fileName: string;
@@ -108,17 +135,28 @@ export default function AdminContractsPage() {
         currency: "USD",
         minimumFractionDigits: 0,
       }).format(parseFloat(createPrice) || 0);
-      const content = template.content.replace(/\{\{PRICE\}\}/g, priceFormatted);
+      const client = clients.find((c) => c.id === createClientId);
+      const clientName = client ? (client.full_name || client.company_name || "Client") : "Client";
+      const dateFormatted = new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      let content = template.content.replace(/\{\{PRICE\}\}/g, priceFormatted);
+      content = content.replace(/\{\{CLIENT_NAME\}\}/g, clientName);
+      content = content.replace(/\{\{DATE\}\}/g, dateFormatted);
       const pdfBytes = await createPdfFromText(content);
-      fileName = `${template.name.replace(/\s+/g, "-")}-${Date.now()}.pdf`;
+      const baseName = createContractName.trim() || template.name.replace(/\s+/g, "-");
+      fileName = `${baseName}-${Date.now()}.pdf`.replace(/[^a-zA-Z0-9._-]/g, "-");
       const path = `${createClientId}/contracts/${fileName}`;
-      const { data: uploadData, error } = await supabase.storage
+      const { data: uploadData, error: uploadErr } = await supabase.storage
         .from("client-files")
         .upload(path, pdfBytes, {
           contentType: "application/pdf",
           upsert: true,
         });
-      if (error) {
+      if (uploadErr) {
+        setCreateError(uploadErr.message || "Failed to upload contract");
         setUploading(false);
         return;
       }
@@ -128,12 +166,13 @@ export default function AdminContractsPage() {
         setUploading(false);
         return;
       }
-      fileName = createFile.name;
+      fileName = createContractName.trim() ? `${createContractName.trim()}-${createFile.name}` : createFile.name;
       const path = `${createClientId}/contracts/${Date.now()}-${createFile.name}`;
-      const { data: uploadData, error } = await supabase.storage
+      const { data: uploadData, error: uploadErr } = await supabase.storage
         .from("client-files")
         .upload(path, createFile, { upsert: true });
-      if (error) {
+      if (uploadErr) {
+        setCreateError(uploadErr.message || "Failed to upload contract");
         setUploading(false);
         return;
       }
@@ -144,22 +183,33 @@ export default function AdminContractsPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    await supabase.from("client_contracts").insert({
+    const contractName =
+      createContractName.trim() ||
+      (createMode === "template" && template ? template.name : createFile?.name ?? "Contract");
+    const { error: insertErr } = await supabase.from("client_contracts").insert({
       client_id: createClientId,
-      name: fileName,
+      name: contractName,
       file_url: fileUrl,
       status: "pending",
       created_by: user?.id ?? null,
       task_id: createTaskId || null,
     });
 
+    if (insertErr) {
+      setCreateError(insertErr.message || "Failed to create contract");
+      setUploading(false);
+      return;
+    }
+
     setUploading(false);
     setCreateFile(null);
     setCreateClientId("");
     setCreateTemplateId("");
     setCreatePrice("");
+    setCreateContractName("");
     setCreateTaskId("");
     setShowCreate(false);
+    setCreateError(null);
     loadData();
   }
 
@@ -193,7 +243,14 @@ export default function AdminContractsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6 items-center">
+        <button
+          onClick={() => loadData()}
+          className="p-2 rounded-lg text-muted hover:text-white hover:bg-surface-light transition-colors"
+          title="Refresh list"
+        >
+          <RefreshCw size={18} />
+        </button>
         <div className="flex gap-2">
           {(["all", "pending", "signed"] as const).map((f) => (
             <button
@@ -236,7 +293,9 @@ export default function AdminContractsPage() {
                   setCreateClientId("");
                   setCreateTemplateId("");
                   setCreatePrice("");
+                  setCreateContractName("");
                   setCreateTaskId("");
+                  setCreateError(null);
                 }}
                 className="text-muted hover:text-white"
               >
@@ -270,6 +329,16 @@ export default function AdminContractsPage() {
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="block text-white text-sm font-medium mb-1.5">Contract name</label>
+                <input
+                  type="text"
+                  value={createContractName}
+                  onChange={(e) => setCreateContractName(e.target.value)}
+                  placeholder="e.g. Digital Services Agreement"
+                  className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white placeholder-muted"
+                />
+              </div>
               <div>
                 <label className="block text-white text-sm font-medium mb-1.5">Client</label>
                 <select
@@ -317,12 +386,15 @@ export default function AdminContractsPage() {
                   </div>
                   <div>
                     <label className="block text-white text-sm font-medium mb-1.5">Link to task (optional)</label>
+                    <p className="text-muted text-xs mb-1.5">
+                      If none: a new task board will be created when the contract is signed.
+                    </p>
                     <select
                       value={createTaskId}
                       onChange={(e) => setCreateTaskId(e.target.value)}
                       className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
                     >
-                      <option value="">None</option>
+                      <option value="">None — create new board when signed</option>
                       {tasks.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.title}
@@ -333,22 +405,46 @@ export default function AdminContractsPage() {
                   </div>
                 </>
               ) : (
-                <div>
-                  <label className="block text-white text-sm font-medium mb-1.5">Contract PDF</label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf"
-                    className="hidden"
-                    onChange={(e) => setCreateFile(e.target.files?.[0] ?? null)}
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 border-2 border-dashed border-border rounded-lg text-muted hover:text-white hover:border-primary transition-colors"
-                  >
-                    {createFile ? createFile.name : "Choose PDF file"}
-                  </button>
-                </div>
+                <>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-1.5">Contract PDF</label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => setCreateFile(e.target.files?.[0] ?? null)}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-3 border-2 border-dashed border-border rounded-lg text-muted hover:text-white hover:border-primary transition-colors"
+                    >
+                      {createFile ? createFile.name : "Choose PDF file"}
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-1.5">Link to task (optional)</label>
+                    <p className="text-muted text-xs mb-1.5">
+                      If none: a new task board will be created when the contract is signed.
+                    </p>
+                    <select
+                      value={createTaskId}
+                      onChange={(e) => setCreateTaskId(e.target.value)}
+                      className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
+                    >
+                      <option value="">None — create new board when signed</option>
+                      {tasks.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {createError && (
+                <p className="text-red-400 text-sm">{createError}</p>
               )}
 
               <button

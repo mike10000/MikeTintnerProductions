@@ -11,6 +11,7 @@ import {
   MessageSquare,
   FolderOpen,
   FileSignature,
+  Bell,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/portal", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/portal/notifications", icon: Bell, label: "Notifications" },
   { href: "/portal/work-orders", icon: ClipboardList, label: "Work Orders" },
   { href: "/portal/quotes", icon: FileText, label: "Quotes" },
   { href: "/portal/invoices", icon: Receipt, label: "Invoices" },
