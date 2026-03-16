@@ -165,10 +165,11 @@ export async function createCalendarEvent(params: {
       conferenceDataVersion: params.createMeetLink ? 1 : 0,
     });
 
-    const meetLink = data.conferenceData?.entryPoints?.find(
+    const meetUri = data.conferenceData?.entryPoints?.find(
       (e) => e.entryPointType === "video"
     )?.uri;
-    const eventLink = data.htmlLink ?? undefined;
+    const meetLink = typeof meetUri === "string" ? meetUri : undefined;
+    const eventLink = typeof data.htmlLink === "string" ? data.htmlLink : undefined;
 
     return { meetLink, eventLink };
   } catch (err) {

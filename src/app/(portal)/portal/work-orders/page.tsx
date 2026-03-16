@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { WorkOrder } from "@/lib/types";
@@ -26,7 +26,7 @@ const statusConfig: Record<
   cancelled: { label: "Cancelled", color: "text-red-400", icon: XCircle },
 };
 
-export default function WorkOrdersPage() {
+function WorkOrdersContent() {
   const searchParams = useSearchParams();
   const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -329,5 +329,13 @@ export default function WorkOrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function WorkOrdersPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-muted text-center py-12">Loading...</div>}>
+      <WorkOrdersContent />
+    </Suspense>
   );
 }

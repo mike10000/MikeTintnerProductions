@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createPdfFromText } from "@/lib/pdf-utils";
@@ -37,7 +37,7 @@ type ContractTemplate = {
 
 type TaskOption = { id: string; title: string };
 
-export default function AdminContractsPage() {
+function AdminContractsContent() {
   const searchParams = useSearchParams();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [clients, setClients] = useState<{ id: string; full_name: string; company_name: string | null }[]>([]);
@@ -183,9 +183,10 @@ export default function AdminContractsPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const templateForName = createMode === "template" ? templates.find((t) => t.id === createTemplateId) : null;
     const contractName =
       createContractName.trim() ||
-      (createMode === "template" && template ? template.name : createFile?.name ?? "Contract");
+      (templateForName ? templateForName.name : createFile?.name ?? "Contract");
     const { error: insertErr } = await supabase.from("client_contracts").insert({
       client_id: createClientId,
       name: contractName,
@@ -553,5 +554,13 @@ export default function AdminContractsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminContractsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-muted text-center py-12">Loading...</div>}>
+      <AdminContractsContent />
+    </Suspense>
   );
 }

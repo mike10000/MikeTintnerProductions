@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation, Message } from "@/lib/types";
 import { MessageSquare, Send, Plus, ArrowLeft, Paperclip, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function MessagesPage() {
+function MessagesContent() {
   const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvo, setActiveConvo] = useState<string | null>(null);
@@ -327,5 +327,13 @@ export default function MessagesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-muted text-center py-12">Loading...</div>}>
+      <MessagesContent />
+    </Suspense>
   );
 }

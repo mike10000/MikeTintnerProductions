@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Quote, LineItem, Profile, QuoteStatus } from "@/lib/types";
@@ -40,7 +40,7 @@ const emptyLineItem: LineItem = {
   unit_price: 0,
 };
 
-export default function AdminQuotesPage() {
+function AdminQuotesContent() {
   const searchParams = useSearchParams();
   const [quotes, setQuotes] = useState<QuoteWithProfile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
@@ -610,5 +610,13 @@ export default function AdminQuotesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminQuotesPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-muted text-center py-12">Loading...</div>}>
+      <AdminQuotesContent />
+    </Suspense>
   );
 }

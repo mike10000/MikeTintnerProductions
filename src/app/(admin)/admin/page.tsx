@@ -122,12 +122,14 @@ export default async function AdminDashboard() {
               Approved quotes — send contract & invoice
             </h2>
             <ul className="space-y-2">
-            {approvedQuotes?.map((q: { id: string; client_id: string; total: number; profiles?: { full_name: string; company_name: string | null } | null }) => (
+            {approvedQuotes?.map((q) => {
+              const profile = Array.isArray(q.profiles) ? q.profiles[0] : q.profiles;
+              return (
               <li key={q.id}>
                 <div className="flex items-center justify-between p-3 rounded-lg bg-surface hover:bg-surface-lighter transition-colors">
                   <span className="text-white">
-                    {(q.profiles as { full_name?: string; company_name?: string | null })?.full_name ||
-                      (q.profiles as { full_name?: string; company_name?: string | null })?.company_name ||
+                    {(profile as { full_name?: string; company_name?: string | null })?.full_name ||
+                      (profile as { full_name?: string; company_name?: string | null })?.company_name ||
                       "Client"}
                   </span>
                   <div className="flex gap-2">
@@ -148,7 +150,7 @@ export default async function AdminDashboard() {
                   </div>
                 </div>
               </li>
-            ))}
+            );})}
             </ul>
             <Link
               href="/admin/quotes"
@@ -166,20 +168,20 @@ export default async function AdminDashboard() {
               Due today
             </h2>
             <ul className="space-y-2">
-            {(todayTasks ?? []).map((task: {
-              id: string;
-              title: string;
-              priority: string;
-              board_columns?: { boards?: { id: string; name: string } } | null;
-            }) => (
+            {(todayTasks ?? []).map((task) => {
+              const bc = Array.isArray(task.board_columns) ? task.board_columns[0] : task.board_columns;
+              const b = bc as { boards?: unknown } | null;
+              const boardsArr = b?.boards;
+              const board = (Array.isArray(boardsArr) ? boardsArr[0] : boardsArr) as { id?: string; name?: string } | undefined;
+              return (
               <li key={task.id}>
                 <Link
-                  href={`/admin/boards/${task.board_columns?.boards?.id}`}
+                  href={`/admin/boards/${board?.id ?? ""}`}
                   className="flex items-center justify-between p-3 rounded-lg bg-surface hover:bg-surface-lighter transition-colors group"
                 >
                   <span className="text-white group-hover:text-primary-light">{task.title}</span>
                   <span className="text-muted text-sm">
-                    {task.board_columns?.boards?.name ?? "Board"}
+                    {board?.name ?? "Board"}
                     {task.priority !== "medium" && (
                       <span className={`ml-2 text-xs ${
                         task.priority === "urgent" ? "text-red-400" :
@@ -191,7 +193,7 @@ export default async function AdminDashboard() {
                   </span>
                 </Link>
               </li>
-            ))}
+            );})}
             </ul>
             <Link
               href="/admin/boards"

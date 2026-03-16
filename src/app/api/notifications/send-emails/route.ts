@@ -67,8 +67,7 @@ export async function POST(request: Request) {
     }
 
     const { data } = await supabase.auth.admin.getUserById(n.user_id);
-    const user = (data as { user?: { email?: string } })?.user ?? data;
-    const email = user?.email;
+    const email = (data as { user?: { email?: string } })?.user?.email ?? (data as { email?: string })?.email;
     if (!email) {
       await supabase.from("notifications").update({ email_sent: true }).eq("id", n.id);
       processed++;

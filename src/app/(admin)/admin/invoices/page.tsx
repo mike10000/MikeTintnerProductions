@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Invoice, LineItem, Profile, InvoiceStatus } from "@/lib/types";
@@ -38,7 +38,7 @@ const emptyLineItem: LineItem = {
   unit_price: 0,
 };
 
-export default function AdminInvoicesPage() {
+function AdminInvoicesContent() {
   const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<InvoiceWithProfile[]>([]);
   const [clients, setClients] = useState<Profile[]>([]);
@@ -591,5 +591,13 @@ export default function AdminInvoicesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminInvoicesPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-muted text-center py-12">Loading...</div>}>
+      <AdminInvoicesContent />
+    </Suspense>
   );
 }
