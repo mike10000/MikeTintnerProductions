@@ -23,6 +23,20 @@ export default function InvoicesPage() {
     loadInvoices();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paidId = params.get("paid");
+    if (paidId) {
+      window.history.replaceState({}, "", "/portal/invoices");
+      const t1 = setTimeout(loadInvoices, 1000);
+      const t2 = setTimeout(loadInvoices, 4000);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }
+  }, []);
+
   async function loadInvoices() {
     const supabase = createClient();
     const {

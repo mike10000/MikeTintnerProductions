@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { createClient } from "@/lib/supabase/client";
 import { SignaturePad } from "./SignaturePad";
 import { X, Loader2, CheckCircle, Mail } from "lucide-react";
+import { SIG_LINE_Y, DATE_LINE_Y } from "@/lib/pdf-utils";
 
 type Contract = {
   id: string;
@@ -70,16 +71,14 @@ export function SignContractModal({ contract, onClose, onSigned }: SignContractM
 
       const signatureImage = await pdfDoc.embedPng(pngBytes);
 
-      // Place signature and date where template says "Client Signature" and "Date" (bottom left)
+      // Place signature and date at fixed positions (matches pdf-utils signature block)
       const sigWidth = 180;
       const sigHeight = (signatureImage.height / signatureImage.width) * sigWidth;
       const leftMargin = 72;
-      const sigY = 95;  // above the Date line
-      const dateY = 70; // where "Date" appears in template
 
       lastPage.drawImage(signatureImage, {
         x: leftMargin,
-        y: sigY,
+        y: SIG_LINE_Y,
         width: sigWidth,
         height: sigHeight,
       });
@@ -93,7 +92,7 @@ export function SignContractModal({ contract, onClose, onSigned }: SignContractM
       });
       lastPage.drawText(displayDate, {
         x: leftMargin,
-        y: dateY,
+        y: DATE_LINE_Y,
         size: 12,
         font,
       });

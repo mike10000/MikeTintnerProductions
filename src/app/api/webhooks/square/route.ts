@@ -22,24 +22,33 @@ export async function POST(request: Request) {
     const event = JSON.parse(body);
 
     if (event.type === "payment.completed") {
-      const payment = event.data?.object?.payment;
-      const orderId = payment?.orderId;
+      const payment = event.data?.object?.payment ?? event.data?.object;
+      let invoiceId: string | null = null;
 
+      const orderId = payment?.orderId ?? payment?.order_id;
       if (orderId) {
-        const supabase = await createServiceClient();
-
         const orderResponse = await squareClient.orders.get({ orderId });
-        const invoiceId = orderResponse?.order?.metadata?.invoice_id;
+        const meta = orderResponse?.order?.metadata;
+        invoiceId = meta?.invoice_id ?? meta?.["invoice_id"] ?? null;
+      }
 
-        if (invoiceId) {
-          await supabase
-            .from("invoices")
-            .update({
-              status: "paid",
-              paid_at: new Date().toISOString(),
-            })
-            .eq("id", invoiceId);
-        }
+      if (!invoiceId) {
+        const note = payment?.note ?? "";
+        const match = note.match(/invoice_id:([a-f0-9-]{36})/i);
+        if (match) invoiceId = match[1];
+      }
+
+      if (invoiceId) {
+        const supabase = await createServiceClient();
+        const { error } = await supabase
+          .from("invoices")
+          .update({
+            status: "paid",
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", invoiceId);
+
+        if (error) console.error("Square webhook: failed to update invoice", invoiceId, error);
       }
     }
 

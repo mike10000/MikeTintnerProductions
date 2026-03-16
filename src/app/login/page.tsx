@@ -57,7 +57,8 @@ function LoginForm() {
     }
 
     router.refresh();
-    router.push(redirect);
+    // Full page navigation ensures cookies propagate correctly in production (Vercel)
+    window.location.href = redirect;
   }
 
   async function handleSignup(e: React.FormEvent) {
@@ -84,7 +85,8 @@ function LoginForm() {
     }
 
     router.refresh();
-    router.push(redirect);
+    // Full page navigation ensures cookies propagate correctly in production (Vercel)
+    window.location.href = redirect;
   }
 
   return (

@@ -54,10 +54,13 @@ function AdminContractsContent() {
   const [createPrice, setCreatePrice] = useState("");
   const [createContractName, setCreateContractName] = useState("");
   const [createTaskId, setCreateTaskId] = useState("");
+  const [createInvoiceId, setCreateInvoiceId] = useState("");
+  const [invoices, setInvoices] = useState<{ id: string; line_items: { description: string; quantity: number; unit_price: number }[]; total: number }[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -82,13 +85,29 @@ function AdminContractsContent() {
     }
   }, [searchParams, clients]);
 
+  useEffect(() => {
+    if (!createClientId) {
+      setInvoices([]);
+      setCreateInvoiceId("");
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from("invoices")
+      .select("id, line_items, total")
+      .eq("client_id", createClientId)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setInvoices(data ?? []));
+  }, [createClientId]);
+
   async function loadData() {
+    setLoadError(null);
     const supabase = createClient();
 
     const [contractsRes, clientsRes, templatesRes, tasksRes] = await Promise.all([
       supabase
         .from("client_contracts")
-        .select("*, profiles(full_name, company_name)")
+        .select("*, profiles!client_id(full_name, company_name)")
         .order("created_at", { ascending: false }),
       supabase
         .from("profiles")
@@ -102,9 +121,13 @@ function AdminContractsContent() {
         .order("title"),
     ]);
 
-    if (contractsRes.error) {
-      console.error("Error loading contracts:", contractsRes.error);
-    }
+    const errors: string[] = [];
+    if (contractsRes.error) errors.push(`Contracts: ${contractsRes.error.message}`);
+    if (clientsRes.error) errors.push(`Clients: ${clientsRes.error.message}`);
+    if (templatesRes.error) errors.push(`Templates: ${templatesRes.error.message}`);
+    if (tasksRes.error) errors.push(`Tasks: ${tasksRes.error.message}`);
+    if (errors.length > 0) setLoadError(errors.join(". "));
+
     setContracts(contractsRes.data ?? []);
     setClients(clientsRes.data ?? []);
     setTemplates(templatesRes.data ?? []);
@@ -121,7 +144,12 @@ function AdminContractsContent() {
     let fileName: string;
 
     if (createMode === "template") {
-      if (!createClientId || !createTemplateId || !createPrice.trim()) {
+      if (!createClientId || !createTemplateId) {
+        setUploading(false);
+        return;
+      }
+      const priceVal = createInvoiceId ? parseFloat(invoices.find((i) => i.id === createInvoiceId)?.total?.toString() ?? "0") : parseFloat(createPrice) || 0;
+      if (!createInvoiceId && !createPrice.trim()) {
         setUploading(false);
         return;
       }
@@ -134,7 +162,7 @@ function AdminContractsContent() {
         style: "currency",
         currency: "USD",
         minimumFractionDigits: 0,
-      }).format(parseFloat(createPrice) || 0);
+      }).format(priceVal);
       const client = clients.find((c) => c.id === createClientId);
       const clientName = client ? (client.full_name || client.company_name || "Client") : "Client";
       const dateFormatted = new Date().toLocaleDateString("en-US", {
@@ -142,7 +170,18 @@ function AdminContractsContent() {
         month: "long",
         day: "numeric",
       });
+      const selectedInvoice = createInvoiceId ? invoices.find((i) => i.id === createInvoiceId) : null;
+      const scopeOfWork = selectedInvoice?.line_items?.length
+        ? selectedInvoice.line_items
+            .map((li) => `- ${li.description}${li.quantity > 1 ? ` (${li.quantity}x)` : ""} — ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(li.quantity * li.unit_price)}`)
+            .join("\n")
+        : "- Custom UI/UX Design and Branding Integration.\n- Mobile-Responsive Front-end Development.\n- Back-end Configuration and Content Management System (CMS) Setup.\n- Pre-launch Quality Assurance (QA) and Performance Testing.";
+      const payments = selectedInvoice?.line_items?.length
+        ? `The Client agrees to pay the Provider the total sum of ${priceFormatted} for the completion of the project, as specified below:\n\n${selectedInvoice.line_items.map((li) => `• ${li.description}: ${li.quantity} x ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(li.unit_price)} = ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(li.quantity * li.unit_price)}`).join("\n")}\n\nTotal: ${priceFormatted}\n\nDeposit: A non-refundable commencement fee of 50% is due upon signing.\n\nMilestones: Remaining payments shall be made according to the following schedule: 50% upon Prototype Approval, 50% upon Launch.`
+        : `The Client agrees to pay the Provider the total sum of ${priceFormatted} for the completion of the project.\n\nDeposit: A non-refundable commencement fee of 50% is due upon signing.\n\nMilestones: Remaining payments shall be made according to the following schedule: 50% upon Prototype Approval, 50% upon Launch.`;
       let content = template.content.replace(/\{\{PRICE\}\}/g, priceFormatted);
+      content = content.replace(/\{\{SCOPE_OF_WORK\}\}/g, scopeOfWork);
+      content = content.replace(/\{\{PAYMENTS\}\}/g, payments);
       content = content.replace(/\{\{CLIENT_NAME\}\}/g, clientName);
       content = content.replace(/\{\{DATE\}\}/g, dateFormatted);
       const pdfBytes = await createPdfFromText(content);
@@ -194,6 +233,7 @@ function AdminContractsContent() {
       status: "pending",
       created_by: user?.id ?? null,
       task_id: createTaskId || null,
+      invoice_id: createInvoiceId || null,
     });
 
     if (insertErr) {
@@ -223,6 +263,20 @@ function AdminContractsContent() {
 
   if (loading) {
     return <div className="text-muted text-center py-12">Loading...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-surface-light border border-border rounded-xl p-8 text-center">
+        <p className="text-red-400 mb-4">{loadError}</p>
+        <button
+          onClick={() => loadData()}
+          className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -296,6 +350,7 @@ function AdminContractsContent() {
                   setCreatePrice("");
                   setCreateContractName("");
                   setCreateTaskId("");
+                  setCreateInvoiceId("");
                   setCreateError(null);
                 }}
                 className="text-muted hover:text-white"
@@ -344,7 +399,10 @@ function AdminContractsContent() {
                 <label className="block text-white text-sm font-medium mb-1.5">Client</label>
                 <select
                   value={createClientId}
-                  onChange={(e) => setCreateClientId(e.target.value)}
+                  onChange={(e) => {
+                    setCreateClientId(e.target.value);
+                    setCreateInvoiceId("");
+                  }}
                   className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
                 >
                   <option value="">Select client</option>
@@ -355,6 +413,26 @@ function AdminContractsContent() {
                   ))}
                 </select>
               </div>
+              {createMode === "template" && createClientId && (
+                <div>
+                  <label className="block text-white text-sm font-medium mb-1.5">Link to invoice (optional)</label>
+                  <p className="text-muted text-xs mb-1.5">
+                    Use scope of work and payment terms from an invoice for this client.
+                  </p>
+                  <select
+                    value={createInvoiceId}
+                    onChange={(e) => setCreateInvoiceId(e.target.value)}
+                    className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
+                  >
+                    <option value="">None — use manual price</option>
+                    {invoices.map((inv) => (
+                      <option key={inv.id} value={inv.id}>
+                        ${inv.total.toLocaleString()} — {inv.line_items?.length ?? 0} items
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {createMode === "template" ? (
                 <>
@@ -373,18 +451,20 @@ function AdminContractsContent() {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-white text-sm font-medium mb-1.5">Project price ($)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={createPrice}
-                      onChange={(e) => setCreatePrice(e.target.value)}
-                      placeholder="e.g. 2500"
-                      className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
-                    />
-                  </div>
+                  {!createInvoiceId && (
+                    <div>
+                      <label className="block text-white text-sm font-medium mb-1.5">Project price ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={createPrice}
+                        onChange={(e) => setCreatePrice(e.target.value)}
+                        placeholder="e.g. 2500"
+                        className="w-full bg-surface border border-border rounded-lg px-4 py-2.5 text-white"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-white text-sm font-medium mb-1.5">Link to task (optional)</label>
                     <p className="text-muted text-xs mb-1.5">
@@ -453,7 +533,7 @@ function AdminContractsContent() {
                 disabled={
                   !createClientId ||
                   (createMode === "template"
-                    ? !createTemplateId || !createPrice.trim()
+                    ? !createTemplateId || (!createInvoiceId && !createPrice.trim())
                     : !createFile) ||
                   uploading
                 }

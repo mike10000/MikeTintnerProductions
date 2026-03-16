@@ -67,6 +67,7 @@ export async function POST(request: Request) {
         redirectUrl: `${appUrl}/portal/invoices?paid=${invoiceId}`,
         askForShippingAddress: false,
       },
+      paymentNote: `invoice_id:${invoiceId}`,
     });
 
     const url = response.paymentLink?.url ?? response.paymentLink?.longUrl;

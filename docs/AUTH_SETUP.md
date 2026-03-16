@@ -27,3 +27,15 @@ Built-in. Add these to **Supabase** → **Authentication** → **URL Configurati
 ## Email/Password
 
 Already enabled by default in Supabase. No extra setup needed.
+
+## Production (Vercel)
+
+For auth to work in production:
+
+1. **Supabase Dashboard** → Authentication → **URL Configuration**:
+   - **Site URL**: Set to your production URL (e.g. `https://yourdomain.com` or `https://your-app.vercel.app`)
+   - **Redirect URLs**: Add `https://yourdomain.com/**` and `https://*.vercel.app/**` for Vercel previews
+
+2. **Vercel** → Project Settings → **Environment Variables**:
+   - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (required)
+   - `NEXT_PUBLIC_APP_URL`: Your production URL (e.g. `https://yourdomain.com`)
