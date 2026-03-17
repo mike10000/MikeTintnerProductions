@@ -1,11 +1,14 @@
 "use client";
 
-import { Store, Leaf, Heart, Tractor, Music } from "lucide-react";
+import { useState } from "react";
+import { Store, Leaf, Heart, Tractor, Music, MessageSquare } from "lucide-react";
+import { EnquireModal } from "./EnquireModal";
 
 const services = [
   {
     icon: Store,
     title: "Small Businesses",
+    orgType: "small-business" as const,
     description:
       "Professional websites that establish credibility, attract customers, and drive sales — without breaking the bank.",
     gradient: "from-blue-600/20 via-cyan-500/10 to-transparent",
@@ -16,6 +19,7 @@ const services = [
   {
     icon: Leaf,
     title: "Environmental Orgs",
+    orgType: "environmental" as const,
     description:
       "Compelling sites that communicate your mission, rally supporters, and amplify your environmental impact.",
     gradient: "from-emerald-600/20 via-green-500/10 to-transparent",
@@ -26,6 +30,7 @@ const services = [
   {
     icon: Heart,
     title: "Non-Profits",
+    orgType: "nonprofit" as const,
     description:
       "Donation-ready websites that tell your story, engage donors, and streamline volunteer sign-ups.",
     gradient: "from-rose-600/20 via-pink-500/10 to-transparent",
@@ -36,6 +41,7 @@ const services = [
   {
     icon: Tractor,
     title: "Farms & Agriculture",
+    orgType: "farm" as const,
     description:
       "Beautiful sites for CSAs, farm stands, and agritourism — connect with your local community online.",
     gradient: "from-amber-600/20 via-yellow-500/10 to-transparent",
@@ -46,6 +52,7 @@ const services = [
   {
     icon: Music,
     title: "Local Musicians",
+    orgType: "musician" as const,
     description:
       "Striking artist websites with show dates, music players, merch shops, and press kits that get you noticed.",
     gradient: "from-violet-600/20 via-purple-500/10 to-transparent",
@@ -56,6 +63,13 @@ const services = [
 ];
 
 export function ServiceCards() {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<typeof services[0] | null>(null);
+
+  function openEnquire(service: typeof services[0]) {
+    setSelectedService(service);
+    setModalOpen(true);
+  }
   return (
     <section className="bg-surface py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -122,9 +136,16 @@ export function ServiceCards() {
                   {service.description}
                 </p>
 
-                {/* Animated arrow on hover */}
-                <div className="mt-4 flex items-center gap-2 text-primary-light text-sm font-medium opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
-                  Learn more
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEnquire(service);
+                  }}
+                  className="mt-4 flex items-center gap-2 text-primary-light hover:text-white text-sm font-medium transition-all duration-300"
+                >
+                  <MessageSquare size={16} />
+                  Enquire
                   <svg
                     className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1"
                     fill="none"
@@ -138,7 +159,7 @@ export function ServiceCards() {
                       d="M17 8l4 4m0 0l-4 4m4-4H3"
                     />
                   </svg>
-                </div>
+                </button>
               </div>
 
               {/* Corner glow */}
@@ -147,6 +168,16 @@ export function ServiceCards() {
           ))}
         </div>
       </div>
+
+      <EnquireModal
+        isOpen={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedService(null);
+        }}
+        defaultOrgType={selectedService?.orgType ?? ""}
+        serviceTitle={selectedService?.title}
+      />
     </section>
   );
 }
