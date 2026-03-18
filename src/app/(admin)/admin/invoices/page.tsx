@@ -15,6 +15,7 @@ import {
   DollarSign,
   Trash2,
 } from "lucide-react";
+import { ClientInfoModal } from "@/components/admin/ClientInfoModal";
 
 type InvoiceWithProfile = Invoice & {
   profiles?: { full_name: string; company_name: string | null } | null;
@@ -47,6 +48,7 @@ function AdminInvoicesContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formClientId, setFormClientId] = useState("");
+  const [clientInfoModalId, setClientInfoModalId] = useState<string | null>(null);
   const [formLineItems, setFormLineItems] = useState<LineItem[]>([
     { ...emptyLineItem },
   ]);
@@ -325,9 +327,13 @@ function AdminInvoicesContent() {
                         </p>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="text-white">
+                        <button
+                          type="button"
+                          onClick={() => setClientInfoModalId(invoice.client_id)}
+                          className="text-white hover:text-primary-light transition-colors text-left"
+                        >
                           {getClientName(invoice)}
-                        </p>
+                        </button>
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-white font-medium">
@@ -394,6 +400,13 @@ function AdminInvoicesContent() {
             </table>
           </div>
         </div>
+      )}
+
+      {clientInfoModalId && (
+        <ClientInfoModal
+          clientId={clientInfoModalId}
+          onClose={() => setClientInfoModalId(null)}
+        />
       )}
 
       {/* Create Invoice Modal */}

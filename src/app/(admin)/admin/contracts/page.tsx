@@ -13,6 +13,7 @@ import {
   FileText,
   RefreshCw,
 } from "lucide-react";
+import { ClientInfoModal } from "@/components/admin/ClientInfoModal";
 
 type Contract = {
   id: string;
@@ -61,6 +62,7 @@ function AdminContractsContent() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [clientInfoModalId, setClientInfoModalId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -576,8 +578,14 @@ function AdminContractsContent() {
                       <span className="text-white">{c.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted">
-                    {(c.profiles as { full_name?: string; company_name?: string })?.full_name ?? "—"}
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setClientInfoModalId(c.client_id)}
+                      className="text-muted hover:text-primary-light transition-colors text-left"
+                    >
+                      {(c.profiles as { full_name?: string; company_name?: string })?.full_name ?? "—"}
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     {c.status === "signed" ? (
@@ -614,6 +622,13 @@ function AdminContractsContent() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {clientInfoModalId && (
+        <ClientInfoModal
+          clientId={clientInfoModalId}
+          onClose={() => setClientInfoModalId(null)}
+        />
       )}
 
       {previewUrl && (

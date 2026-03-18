@@ -18,6 +18,7 @@ import {
   Paperclip,
   FileText,
 } from "lucide-react";
+import { ClientInfoModal } from "@/components/admin/ClientInfoModal";
 
 type WorkOrderWithProfile = WorkOrder & {
   profiles?: { full_name: string; company_name: string | null } | null;
@@ -77,6 +78,7 @@ export default function AdminWorkOrdersPage() {
   );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [clientInfoModalId, setClientInfoModalId] = useState<string | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -178,6 +180,13 @@ export default function AdminWorkOrdersPage() {
         ))}
       </div>
 
+      {clientInfoModalId && (
+        <ClientInfoModal
+          clientId={clientInfoModalId}
+          onClose={() => setClientInfoModalId(null)}
+        />
+      )}
+
       {filteredOrders.length === 0 ? (
         <div className="bg-surface-light border border-border rounded-xl p-12 text-center text-muted">
           No work orders found
@@ -238,7 +247,13 @@ export default function AdminWorkOrdersPage() {
                           </button>
                         </td>
                         <td className="px-5 py-4">
-                          <p className="text-white">{getClientName(order)}</p>
+                          <button
+                            type="button"
+                            onClick={() => setClientInfoModalId(order.client_id)}
+                            className="text-white hover:text-primary-light transition-colors text-left"
+                          >
+                            {getClientName(order)}
+                          </button>
                         </td>
                         <td className="px-5 py-4">
                           <span

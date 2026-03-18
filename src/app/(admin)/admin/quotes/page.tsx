@@ -17,6 +17,7 @@ import {
   FileSignature,
   Receipt,
 } from "lucide-react";
+import { ClientInfoModal } from "@/components/admin/ClientInfoModal";
 
 type QuoteWithProfile = Quote & {
   profiles?: { full_name: string; company_name: string | null } | null;
@@ -49,6 +50,7 @@ function AdminQuotesContent() {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formClientId, setFormClientId] = useState("");
+  const [clientInfoModalId, setClientInfoModalId] = useState<string | null>(null);
   const [formLineItems, setFormLineItems] = useState<LineItem[]>([
     { ...emptyLineItem },
   ]);
@@ -316,7 +318,13 @@ function AdminQuotesContent() {
                         </p>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="text-white">{getClientName(quote)}</p>
+                        <button
+                          type="button"
+                          onClick={() => setClientInfoModalId(quote.client_id)}
+                          className="text-white hover:text-primary-light transition-colors text-left"
+                        >
+                          {getClientName(quote)}
+                        </button>
                       </td>
                       <td className="px-5 py-4">
                         <p className="text-white font-medium">
@@ -401,6 +409,13 @@ function AdminQuotesContent() {
             </table>
           </div>
         </div>
+      )}
+
+      {clientInfoModalId && (
+        <ClientInfoModal
+          clientId={clientInfoModalId}
+          onClose={() => setClientInfoModalId(null)}
+        />
       )}
 
       {/* Create Quote Modal */}
